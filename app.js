@@ -681,8 +681,8 @@ document.addEventListener('DOMContentLoaded', function() {
   });
   // Close modal
   function closeCreateChannelModal() {
-      createChannelModal.classList.remove('active');
-      setTimeout(() => createChannelModal.style.display = 'none', 200);
+    createChannelModal.classList.remove('active');
+    setTimeout(() => createChannelModal.style.display = 'none', 200);
   }
   createChannelClose.addEventListener('click', closeCreateChannelModal);
   createChannelCancel.addEventListener('click', closeCreateChannelModal);
@@ -870,7 +870,7 @@ document.addEventListener('DOMContentLoaded', function() {
           dropdown.style.zIndex = 1000;
           dropdown.style.textAlign = 'left';
           // Server ID (8 digits)
-
+        
           // Members list
           dropdown.innerHTML = `<div style='font-size:1.08rem;font-weight:600;margin-bottom:8px;'>Server ID: <span id='server-id-val' style='font-family:monospace;'>${serverData && serverData.id ? serverData.id : 'Unknown'}</span> <button id='copy-server-id-btn' style='margin-left:8px;padding:2px 8px;font-size:0.98rem;border-radius:6px;border:none;background:#43b581;color:#fff;cursor:pointer;'>Copy</button> <span id='copy-feedback' style='color:#43b581;font-size:0.98rem;margin-left:6px;display:none;'>Copied!</span></div>`;
           dropdown.innerHTML += `<div style='font-size:1.05rem;font-weight:600;margin:10px 0 6px 0;'>Members</div><div id='server-members-list' style='min-height:40px;opacity:0;transition:opacity 0.4s;'></div>`;
@@ -885,7 +885,7 @@ document.addEventListener('DOMContentLoaded', function() {
               setTimeout(() => { copyIdFeedback.style.display = 'none'; }, 1200);
             };
           }
-
+          
           // Show loading spinner
           const membersDiv = dropdown.querySelector('#server-members-list');
           membersDiv.innerHTML = `<div style='display:flex;align-items:center;justify-content:center;height:36px;'><span class='fa fa-spinner fa-spin' style='color:#43b581;font-size:1.3rem;'></span></div>`;
@@ -1074,16 +1074,16 @@ document.addEventListener('DOMContentLoaded', function() {
         </div>
         <div class="voice-main-content voice-users-grid" id="voice-users-grid">
           <!-- Voice members will be rendered here by renderVoiceMembers() -->
-        </div>
-        <div class="voice-controls-bar">
+                  </div>
+          <div class="voice-controls-bar">
           <button class="voice-control-btn" id="voice-mute-btn" title="Mute/Unmute" style="display:none;"><i class="fa fa-microphone-slash"></i></button>
-          <button class="voice-control-btn" id="voice-deafen-btn" title="Deafen (not implemented)"><i class="fa fa-headphones"></i></button>
-          <button class="voice-control-btn" id="voice-screenshare-btn" title="Screen Share (coming soon)" disabled><i class="fa fa-desktop"></i></button>
-          <button class="voice-control-btn" id="voice-more-btn" title="More"><i class="fa fa-ellipsis-h"></i></button>
+            <button class="voice-control-btn" id="voice-deafen-btn" title="Deafen (not implemented)"><i class="fa fa-headphones"></i></button>
+            <button class="voice-control-btn" id="voice-screenshare-btn" title="Screen Share (coming soon)" disabled><i class="fa fa-desktop"></i></button>
+            <button class="voice-control-btn" id="voice-more-btn" title="More"><i class="fa fa-ellipsis-h"></i></button>
           <button class="voice-control-btn voice-leave-btn" id="voice-leave-btn" title="Leave Call" style="display:none;"><i class="fa fa-phone"></i></button>
           <button class="voice-control-btn voice-join-btn" id="voice-join-btn" title="Join Call"><i class="fa fa-phone-square"></i> Join Voice</button>
-        </div>
-      `;
+          </div>
+        `;
 
       // Attach event listeners for voice controls
       document.getElementById('voice-join-btn').onclick = () => {
@@ -1098,10 +1098,10 @@ document.addEventListener('DOMContentLoaded', function() {
           document.getElementById('voice-leave-btn').style.display = 'none';
           document.getElementById('voice-mute-btn').style.display = 'none'; // Hide mute button when left
       };
-      document.getElementById('voice-mute-btn').onclick = toggleMute;
-      document.getElementById('voice-deafen-btn').onclick = () => alert('Deafen coming soon!');
-      document.getElementById('voice-screenshare-btn').onclick = () => alert('Screen share coming soon!');
-      document.getElementById('voice-more-btn').onclick = () => alert('More options coming soon!');
+        document.getElementById('voice-mute-btn').onclick = toggleMute;
+        document.getElementById('voice-deafen-btn').onclick = () => alert('Deafen coming soon!');
+        document.getElementById('voice-screenshare-btn').onclick = () => alert('Screen share coming soon!');
+        document.getElementById('voice-more-btn').onclick = () => alert('More options coming soon!');
 
       // Initial render of voice members (will likely be empty until WebSocket update)
       renderVoiceMembers();
@@ -1971,8 +1971,7 @@ document.addEventListener('DOMContentLoaded', function() {
   let hasJoined = false;
 
   // Replace with your actual Render public URL (e.g. 'wss://your-app-name.onrender.com')
-  const WEBSOCKET_URL = 'wss://your-app-name.onrender.com';
-
+  const WEBSOCKET_URL = 'wss://mono-luor.onrender.com';
   // Call this when a user joins a voice channel
   async function joinVoiceChannel(selectedChannel, currentUser) {
     if (hasJoined) return;
@@ -1998,7 +1997,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Listen for updates
     voiceWebSocket.onmessage = (event) => {
-      const data = JSON.parse(event.data);
+        const data = JSON.parse(event.data);
       if (data.type === 'user_list_update' && data.room === selectedChannel.id) {
         // Update voice members list
         voiceMembers = data.users.map(uid => ({
@@ -2051,14 +2050,14 @@ document.addEventListener('DOMContentLoaded', function() {
       const u = m.users || {};
       const avatar = u.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.username || 'User')}`;
       return `
-        <div class="voice-user-tile">
+          <div class="voice-user-tile">
           <img class="voice-user-avatar" src="${avatar}" alt="Avatar">
-          <div class="voice-user-label">
+            <div class="voice-user-label">
             <i class="fa fa-microphone" style="margin-right:6px;"></i>
             ${u.username || 'Unknown'}
-          </div>
-        </div>
-      `;
+            </div>
+      </div>
+    `;
     }).join('');
   }
   // --- End Voice Channel WebSocket Logic ---
@@ -2133,4 +2132,4 @@ style.innerHTML = `
   100% { text-shadow: 0 0 24px #43b581cc, 0 0 8px #fff; }
 }
 `;
-document.head.appendChild(style);
+document.head.appendChild(style); 
