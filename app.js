@@ -30,20 +30,6 @@ let channelRealtimeSubscription = null;
 // Track the currently subscribed channel for realtime
 let currentRealtimeChannelId = null;
 
-// At the top-level (global):
-let voiceSubscription = null;
-let currentVoiceChannelSubId = null;
-
-let heartbeatInterval = null;
-
-let voiceChannelName = null;
-let isVoiceSubscribed = false;
-
-// Add UUID validation helper at top-level
-function isValidUUID(uuid) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uuid);
-}
-
 // Add global to track last selected channel and server name
 let lastSelectedChannel = null;
 let lastSelectedServerName = null;
@@ -224,8 +210,6 @@ document.addEventListener('DOMContentLoaded', function() {
             creator_id: currentUser.id
           }
         ]);
-        // REMOVE: code that creates and inserts a server button here
-        // Instead, just let loadServers() handle rendering
       }
       setTimeout(() => {
         document.getElementById('modal-overlay').style.display = 'none';
@@ -697,8 +681,8 @@ document.addEventListener('DOMContentLoaded', function() {
   });
   // Close modal
   function closeCreateChannelModal() {
-    createChannelModal.classList.remove('active');
-    setTimeout(() => createChannelModal.style.display = 'none', 200);
+      createChannelModal.classList.remove('active');
+      setTimeout(() => createChannelModal.style.display = 'none', 200);
   }
   createChannelClose.addEventListener('click', closeCreateChannelModal);
   createChannelCancel.addEventListener('click', closeCreateChannelModal);
@@ -886,7 +870,7 @@ document.addEventListener('DOMContentLoaded', function() {
           dropdown.style.zIndex = 1000;
           dropdown.style.textAlign = 'left';
           // Server ID (8 digits)
-        
+
           // Members list
           dropdown.innerHTML = `<div style='font-size:1.08rem;font-weight:600;margin-bottom:8px;'>Server ID: <span id='server-id-val' style='font-family:monospace;'>${serverData && serverData.id ? serverData.id : 'Unknown'}</span> <button id='copy-server-id-btn' style='margin-left:8px;padding:2px 8px;font-size:0.98rem;border-radius:6px;border:none;background:#43b581;color:#fff;cursor:pointer;'>Copy</button> <span id='copy-feedback' style='color:#43b581;font-size:0.98rem;margin-left:6px;display:none;'>Copied!</span></div>`;
           dropdown.innerHTML += `<div style='font-size:1.05rem;font-weight:600;margin:10px 0 6px 0;'>Members</div><div id='server-members-list' style='min-height:40px;opacity:0;transition:opacity 0.4s;'></div>`;
@@ -901,7 +885,7 @@ document.addEventListener('DOMContentLoaded', function() {
               setTimeout(() => { copyIdFeedback.style.display = 'none'; }, 1200);
             };
           }
-          
+
           // Show loading spinner
           const membersDiv = dropdown.querySelector('#server-members-list');
           membersDiv.innerHTML = `<div style='display:flex;align-items:center;justify-content:center;height:36px;'><span class='fa fa-spinner fa-spin' style='color:#43b581;font-size:1.3rem;'></span></div>`;
@@ -976,8 +960,20 @@ document.addEventListener('DOMContentLoaded', function() {
     hideDefaultWelcome();
     selectedChannelId = selectedChannel.id;
     const mainPanel = document.querySelector('.main-panel');
-    // Only show welcome card if a server and a text channel are selected
+    const currentUser = getUserSession();
+
+    // If current user is null, make sure we return early or handle authentication
+    if (!currentUser) {
+        console.error("User not authenticated.");
+        return;
+    }
+
     if (selectedChannel && selectedChannel.type === 'text') {
+      // If a voice channel was previously joined, leave it
+      if (hasJoined) {
+        await leaveVoiceChannel(lastSelectedChannel, currentUser); // Pass correct channel/user
+      }
+
       // Fetch messages for this channel
       const messages = await fetchMessagesForChannel(selectedChannel.id);
       // Fetch user info for all unique user_ids in messages
@@ -1062,210 +1058,66 @@ document.addEventListener('DOMContentLoaded', function() {
         currentRealtimeChannelId = selectedChannel.id;
       }
     } else if (selectedChannel && selectedChannel.type === 'voice') {
-      // --- ROBUST MULTI-USER VOICE CHANNEL LOGIC ---
-      const currentUser = getUserSession();
-      let voiceMembers = [];
-      let hasJoined = false;
-      let voiceSubscription = null;
-      let voiceChannelName = null;
-
-      // Helper: fetch all members in this voice channel
-      async function fetchVoiceMembers() {
-        const now = Date.now();
-        const { data } = await supabase
-          .from('voice_channel_members')
-          .select('user_id, muted, last_seen, users: user_id (username, avatar_url)')
-          .eq('channel_id', selectedChannel.id);
-        // Only include members with last_seen within the last 10 seconds
-        voiceMembers = (data || []).filter(m => {
-          if (!m.last_seen) return false;
-          return (now - new Date(m.last_seen).getTime()) < 10000;
-        });
-        renderVoiceMembers();
+      // If a text channel was previously selected, clear its subscription
+      if (channelRealtimeSubscription) {
+          supabase.removeChannel(channelRealtimeSubscription);
+          channelRealtimeSubscription = null;
+          currentRealtimeChannelId = null;
       }
 
-      // Helper: render all members as tiles
-      function renderVoiceMembers() {
-        const mainPanel = document.querySelector('.main-panel');
-        const isInChannel = voiceMembers.some(m => m.user_id === currentUser.id);
-        if (!isInChannel) {
-          mainPanel.innerHTML = '<div class="main-voice-center-msg">You left the voice channel.</div>';
-          return;
-        }
-        const header = `
+      // Voice Channel UI rendering (no database queries for presence)
+      // This will be updated by WebSocket messages
+      mainPanel.innerHTML = `
         <div class="main-chat-header">
           <span class="main-chat-header-hash"><i class='fa fa-volume-up'></i></span>
           <span class="main-chat-header-name">${selectedChannel.name}</span>
         </div>
-        `;
-        const grid = `
-          <div class="voice-main-content voice-users-grid">
-            ${voiceMembers.map(m => {
-              const u = m.users || {};
-              const avatar = u.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.username || 'User')}`;
-              const isMuted = m.muted;
-              return `
-                <div class="voice-user-tile">
-                  <img class="voice-user-avatar" src="${avatar}" alt="Avatar">
-                  <div class="voice-user-label">
-                    <i class="fa ${isMuted ? 'fa-microphone-slash' : 'fa-microphone'}" style="margin-right:6px;${isMuted ? 'color:#e74c3c;' : ''}"></i>
-                    ${u.username || 'Unknown'}
-                  </div>
-                </div>
-              `;
-            }).join('')}
-          </div>
-        `;
-        const controls = `
-          <div class="voice-controls-bar">
-            <button class="voice-control-btn" id="voice-mute-btn" title="Mute/Unmute"><i class="fa fa-microphone${getCurrentUserMuted() ? '-slash' : ''}"></i></button>
-            <button class="voice-control-btn" id="voice-deafen-btn" title="Deafen (not implemented)"><i class="fa fa-headphones"></i></button>
-            <button class="voice-control-btn" id="voice-screenshare-btn" title="Screen Share (coming soon)" disabled><i class="fa fa-desktop"></i></button>
-            <button class="voice-control-btn" id="voice-more-btn" title="More"><i class="fa fa-ellipsis-h"></i></button>
-            <button class="voice-control-btn voice-leave-btn" id="voice-leave-btn" title="Leave Call"><i class="fa fa-phone"></i></button>
-          </div>
-        `;
-        mainPanel.innerHTML = header + grid + controls;
-        // Controls event listeners
-        document.getElementById('voice-mute-btn').onclick = toggleMute;
-        document.getElementById('voice-leave-btn').onclick = leaveVoiceChannel;
-        document.getElementById('voice-deafen-btn').onclick = () => alert('Deafen coming soon!');
-        document.getElementById('voice-screenshare-btn').onclick = () => alert('Screen share coming soon!');
-        document.getElementById('voice-more-btn').onclick = () => alert('More options coming soon!');
-        // Add grid class logic
-        const gridDiv = mainPanel.querySelector('.voice-users-grid');
-        if (gridDiv) {
-          gridDiv.classList.remove('single-user', 'two-users');
-          if (voiceMembers.length === 1) {
-            gridDiv.classList.add('single-user');
-          } else if (voiceMembers.length === 2) {
-            gridDiv.classList.add('two-users');
-          }
-        }
+        <div class="voice-main-content voice-users-grid" id="voice-users-grid">
+          <!-- Voice members will be rendered here by renderVoiceMembers() -->
+        </div>
+        <div class="voice-controls-bar">
+          <button class="voice-control-btn" id="voice-mute-btn" title="Mute/Unmute" style="display:none;"><i class="fa fa-microphone-slash"></i></button>
+          <button class="voice-control-btn" id="voice-deafen-btn" title="Deafen (not implemented)"><i class="fa fa-headphones"></i></button>
+          <button class="voice-control-btn" id="voice-screenshare-btn" title="Screen Share (coming soon)" disabled><i class="fa fa-desktop"></i></button>
+          <button class="voice-control-btn" id="voice-more-btn" title="More"><i class="fa fa-ellipsis-h"></i></button>
+          <button class="voice-control-btn voice-leave-btn" id="voice-leave-btn" title="Leave Call" style="display:none;"><i class="fa fa-phone"></i></button>
+          <button class="voice-control-btn voice-join-btn" id="voice-join-btn" title="Join Call"><i class="fa fa-phone-square"></i> Join Voice</button>
+        </div>
+      `;
+
+      // Attach event listeners for voice controls
+      document.getElementById('voice-join-btn').onclick = () => {
+          joinVoiceChannel(selectedChannel, currentUser);
+          document.getElementById('voice-join-btn').style.display = 'none';
+          document.getElementById('voice-leave-btn').style.display = '';
+          document.getElementById('voice-mute-btn').style.display = ''; // Show mute button when joined
+      };
+      document.getElementById('voice-leave-btn').onclick = () => {
+          leaveVoiceChannel(selectedChannel, currentUser);
+          document.getElementById('voice-join-btn').style.display = '';
+          document.getElementById('voice-leave-btn').style.display = 'none';
+          document.getElementById('voice-mute-btn').style.display = 'none'; // Hide mute button when left
+      };
+      document.getElementById('voice-mute-btn').onclick = toggleMute;
+      document.getElementById('voice-deafen-btn').onclick = () => alert('Deafen coming soon!');
+      document.getElementById('voice-screenshare-btn').onclick = () => alert('Screen share coming soon!');
+      document.getElementById('voice-more-btn').onclick = () => alert('More options coming soon!');
+
+      // Initial render of voice members (will likely be empty until WebSocket update)
+      renderVoiceMembers();
+
+      // If already joined a voice channel and switching to another voice channel, leave the old one first
+      if (hasJoined && voiceWebSocket && voiceWebSocket.readyState === WebSocket.OPEN && voiceWebSocket.room !== selectedChannel.id) {
+          await leaveVoiceChannel(lastSelectedChannel, currentUser); // Leave the previously joined channel
       }
 
-      function getCurrentUserMuted() {
-        const m = voiceMembers.find(m => m.user_id === currentUser.id);
-        return m ? m.muted : false;
+      // Automatically join the voice channel when selecting it, if not already joined
+      if (!hasJoined || voiceWebSocket.room !== selectedChannel.id) {
+          await joinVoiceChannel(selectedChannel, currentUser);
+          document.getElementById('voice-join-btn').style.display = 'none';
+          document.getElementById('voice-leave-btn').style.display = '';
+          document.getElementById('voice-mute-btn').style.display = '';
       }
-
-      // --- Subscription Management ---
-      function removeVoiceSubscription() {
-        if (voiceSubscription && isRealtimeConnected()) {
-          supabase.removeChannel(voiceSubscription);
-          voiceSubscription = null;
-          voiceChannelName = null;
-          isVoiceSubscribed = false;
-        }
-      }
-
-      function subscribeVoiceMembers() {
-        if (!isRealtimeConnected() || isVoiceSubscribed) return; // Don't subscribe if not connected or already subscribed
-        removeVoiceSubscription();
-        voiceChannelName = 'realtime:voice_channel_members_' + selectedChannel.id + '_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
-        voiceSubscription = supabase.channel(voiceChannelName)
-          .on('postgres_changes', {
-            event: '*',
-            schema: 'public',
-            table: 'voice_channel_members',
-            filter: `channel_id=eq.${selectedChannel.id}`
-          }, payload => {
-            console.log('Realtime event:', payload); // Debug log
-            fetchVoiceMembers();
-          })
-          .subscribe();
-        isVoiceSubscribed = true;
-      }
-
-      // --- Join/Leave Logic ---
-      async function joinVoiceChannel() {
-        if (hasJoined) return;
-        hasJoined = true;
-        // Remove any old entry for this user/channel
-        await supabase.from('voice_channel_members')
-          .delete()
-          .eq('channel_id', selectedChannel.id)
-          .eq('user_id', currentUser.id);
-        // Subscribe to realtime BEFORE inserting your row (if not already subscribed)
-        if (isRealtimeConnected() && !isVoiceSubscribed) {
-          subscribeVoiceMembers();
-        }
-        // Insert new entry with last_seen
-        await supabase.from('voice_channel_members').insert({
-          channel_id: selectedChannel.id,
-          user_id: currentUser.id,
-          muted: false,
-          last_seen: new Date().toISOString()
-        });
-        // Start heartbeat to update last_seen every 5 seconds
-        if (heartbeatInterval) clearInterval(heartbeatInterval);
-        heartbeatInterval = setInterval(async () => {
-          if (hasJoined) {
-            await supabase.from('voice_channel_members')
-              .update({ last_seen: new Date().toISOString() })
-              .eq('channel_id', selectedChannel.id)
-              .eq('user_id', currentUser.id);
-          }
-        }, 5000);
-        // Wait for DB, then fetch members
-        setTimeout(() => {
-          fetchVoiceMembers();
-        }, 200);
-        // Add cleanup on tab close
-        window.removeEventListener('beforeunload', cleanupVoiceChannelOnUnload);
-        window.addEventListener('beforeunload', cleanupVoiceChannelOnUnload);
-      }
-
-      async function leaveVoiceChannel() {
-        hasJoined = false;
-        if (heartbeatInterval) {
-          clearInterval(heartbeatInterval);
-          heartbeatInterval = null;
-        }
-        await supabase.from('voice_channel_members')
-          .delete()
-          .eq('channel_id', selectedChannel.id)
-          .eq('user_id', currentUser.id);
-        // Unsubscribe from realtime if connected
-        if (isRealtimeConnected()) {
-          removeVoiceSubscription();
-        }
-        window.removeEventListener('beforeunload', cleanupVoiceChannelOnUnload);
-        // Show only the left message, do not fetch/render members again
-        const mainPanel = document.querySelector('.main-panel');
-        if (mainPanel) mainPanel.innerHTML = '<div class="main-voice-center-msg">You left the voice channel.</div>';
-        // Always fetch members to update UI for others
-        fetchVoiceMembers();
-      }
-
-      async function cleanupVoiceChannelOnUnload() {
-        if (heartbeatInterval) {
-          clearInterval(heartbeatInterval);
-          heartbeatInterval = null;
-        }
-        await supabase.from('voice_channel_members')
-          .delete()
-          .eq('channel_id', selectedChannel.id)
-          .eq('user_id', currentUser.id);
-        if (isRealtimeConnected()) {
-          removeVoiceSubscription();
-        }
-        window.removeEventListener('beforeunload', cleanupVoiceChannelOnUnload);
-      }
-
-      async function toggleMute() {
-        const m = voiceMembers.find(m => m.user_id === currentUser.id);
-        if (!m) return;
-        await supabase.from('voice_channel_members')
-          .update({ muted: !m.muted })
-          .eq('channel_id', selectedChannel.id)
-          .eq('user_id', currentUser.id);
-      }
-
-      // --- Start logic ---
-      await joinVoiceChannel();
-      await fetchVoiceMembers();
-      subscribeVoiceMembers();
     }
     setupEmojiButton();
   }
@@ -1286,7 +1138,11 @@ document.addEventListener('DOMContentLoaded', function() {
     if (messagesDiv) {
       messagesDiv.innerHTML = messages.map(msg => {
         const user = channelUserCache[msg.user_id] || { username: 'Unknown', avatar_url: '' };
-        return `<div class=\"main-chat-message\">\n        <img class=\"friend-avatar\" src=\"${user.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.username)}`}\" alt=\"Avatar\">\n        <div class=\"main-chat-message-content\">\n          <div class=\"main-chat-message-header\">\n            <span class=\"main-chat-message-username\">${user.username}</span>\n            <span class=\"main-chat-message-time\">${new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>\n          </div>\n          <div class=\"main-chat-message-text\">${msg.content}</div>\n        </div>\n      </div>`;
+        return `<div class=\"main-chat-message\">\n        <img class=\"friend-avatar\" src=\"${user.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.username)}`}\" alt=\"Avatar\">\n        <div class=\"main-chat-message-content\">\n          <div class=\"main-chat-message-header\">\n            <span class=\"main-chat-message-username\">${user.username}</span>\n            <span class=\"main-chat-message-time\">${new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+          </div>
+          <div class=\"main-chat-message-text\">${msg.content}</div>
+        </div>
+      </div>`;
       }).join('');
       // Scroll to bottom
       setTimeout(() => {
@@ -1480,6 +1336,10 @@ document.addEventListener('DOMContentLoaded', function() {
         joinMsg.style.color = '#e74c3c';
         return;
       }
+      // Check if code is a valid UUID format (assuming server IDs are UUIDs)
+      const isValidUUID = (uuid) => {
+        return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uuid);
+      };
       if (!isValidUUID(code)) {
         joinMsg.textContent = 'Invalid invite code format.';
         joinMsg.style.color = '#e74c3c';
@@ -1932,7 +1792,7 @@ document.addEventListener('DOMContentLoaded', function() {
           copy.onmouseleave = () => copy.style.background = 'none';
           copy.onclick = () => {
             closeDMContextMenu();
-            navigator.clipboard.writeText(msg.content);
+            document.execCommand('copy'); // Use this for clipboard access in iframes
           };
           menu.appendChild(reply);
           menu.appendChild(copy);
@@ -2105,332 +1965,51 @@ document.addEventListener('DOMContentLoaded', function() {
     if (oldWelcome) oldWelcome.remove();
   }
 
-  // --- Realtime connection status and polling fallback ---
-  let voicePollingInterval = null;
-  let voiceRealtimeConnected = true;
-
-  function showVoiceRealtimeWarning(show) {
-    let banner = document.getElementById('voice-realtime-warning');
-    if (show) {
-      if (!banner) {
-        banner = document.createElement('div');
-        banner.id = 'voice-realtime-warning';
-        banner.style.position = 'fixed';
-        banner.style.top = '0';
-        banner.style.left = '0';
-        banner.style.right = '0';
-        banner.style.background = '#e74c3c';
-        banner.style.color = '#fff';
-        banner.style.textAlign = 'center';
-        banner.style.padding = '8px 0';
-        banner.style.zIndex = '9999';
-        banner.style.fontWeight = 'bold';
-        banner.textContent = 'Live updates lost, trying to reconnect...';
-        document.body.appendChild(banner);
-      }
-    } else {
-      if (banner) banner.remove();
-    }
-  }
-
-  function startVoicePolling(channelId) {
-    if (voicePollingInterval) return;
-    voicePollingInterval = setInterval(() => {
-      if (typeof fetchVoiceMembers === 'function') fetchVoiceMembers();
-    }, 5000);
-    showVoiceRealtimeWarning(true);
-  }
-  function stopVoicePolling() {
-    if (voicePollingInterval) {
-      clearInterval(voicePollingInterval);
-      voicePollingInterval = null;
-    }
-    showVoiceRealtimeWarning(false);
-  }
-
-  if (supabase.realtime && supabase.realtime.on) {
-    supabase.realtime.on('open', () => {
-      voiceRealtimeConnected = true;
-      stopVoicePolling();
-    });
-    supabase.realtime.on('close', () => {
-      voiceRealtimeConnected = false;
-      startVoicePolling(selectedChannelId);
-    });
-    supabase.realtime.on('error', () => {
-      voiceRealtimeConnected = false;
-      startVoicePolling(selectedChannelId);
-    });
-  }
-
-  // Helper to check if Supabase realtime is connected
-  function isRealtimeConnected() {
-    return supabase.realtime && supabase.realtime.socket && supabase.realtime.socket.isConnected();
-  }
-
-  // Helper to wait for realtime connection to be ready
-  async function waitForRealtimeConnection(retries = 10, delay = 200) {
-    for (let i = 0; i < retries; i++) {
-      if (isRealtimeConnected()) return true;
-      await new Promise(res => setTimeout(res, delay));
-    }
-    return false;
-  }
-
-  // --- Voice Channel UI & Logic ---
-
-  // Add voice channel UI to each channel (Discord-style)
-  function createVoiceChannelUI(channelId) {
-    const channelElem = document.querySelector(`[data-channel-id="${channelId}"]`);
-    if (!channelElem) return;
-    let voiceDiv = channelElem.querySelector('.voice-channel-ui');
-    if (voiceDiv) return; // Already added
-
-    voiceDiv = document.createElement('div');
-    voiceDiv.className = 'voice-channel-ui';
-    voiceDiv.innerHTML = `
-      <button class="voice-join-btn">🔊 Join Voice</button>
-      <button class="voice-leave-btn" style="display:none">🚪 Leave Voice</button>
-      <div class="voice-users"></div>
-    `;
-    channelElem.appendChild(voiceDiv);
-
-    const joinBtn = voiceDiv.querySelector('.voice-join-btn');
-    const leaveBtn = voiceDiv.querySelector('.voice-leave-btn');
-    const usersDiv = voiceDiv.querySelector('.voice-users');
-
-    let socket, pc, localStream;
-    let userId = window.currentUserId || (Math.random() + '').slice(2);
-    let userName = window.currentUserName || 'You';
-    let userAvatar = window.currentUserAvatar || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(userName);
-    let peers = {};
-
-    function updateVoiceUsers(users) {
-      usersDiv.innerHTML = '';
-      users.forEach(u => {
-        const userEl = document.createElement('div');
-        userEl.className = 'voice-user';
-        userEl.innerHTML = `
-          <img src="${u.avatar}" class="voice-avatar" />
-          <span class="voice-name">${u.name}</span>
-          <span class="voice-mic" data-id="${u.id}">🎤</span>
-        `;
-        usersDiv.appendChild(userEl);
-      });
-    }
-
-    let voiceUsers = [];
-
-    function addVoiceUser(u) {
-      if (!voiceUsers.find(x => x.id === u.id)) {
-        voiceUsers.push(u);
-        updateVoiceUsers(voiceUsers);
-      }
-    }
-    function removeVoiceUser(id) {
-      voiceUsers = voiceUsers.filter(u => u.id !== id);
-      updateVoiceUsers(voiceUsers);
-    }
-
-    async function setupConnection() {
-      pc = new RTCPeerConnection({
-        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-      });
-      localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-      pc.onicecandidate = (e) => {
-        if (e.candidate) {
-          socket.send(JSON.stringify({ type: 'signal', candidate: e.candidate, room: channelId }));
-        }
-      };
-      pc.ontrack = (e) => {
-        let audio = document.querySelector(`audio[data-peer="${e.streams[0].id}"]`);
-        if (!audio) {
-          audio = document.createElement('audio');
-          audio.dataset.peer = e.streams[0].id;
-          audio.autoplay = true;
-          audio.className = 'voice-audio';
-          usersDiv.appendChild(audio);
-        }
-        audio.srcObject = e.streams[0];
-      };
-    }
-
-    joinBtn.onclick = async () => {
-      console.log('[Voice] Join button clicked for channel:', channelId, userId, userName);
-      socket = new WebSocket('ws://localhost:3000');
-      socket.onopen = () => {
-        console.log('[Voice] WebSocket opened, sending join', { room: channelId, id: userId, name: userName, avatar: userAvatar });
-        socket.send(JSON.stringify({ type: 'join', room: channelId, id: userId, name: userName, avatar: userAvatar }));
-      };
-      socket.onmessage = async (event) => {
-        const data = JSON.parse(event.data);
-        if (data.type === 'user_list_update') {
-          console.log('[Voice] Received user_list_update event:', data.users);
-          // Update the full user list live
-          voiceUsers = data.users;
-          updateVoiceUsers(voiceUsers);
-          // Reload the main panel for the voice channel
-          if (selectedChannelId === channelId && lastSelectedChannel && lastSelectedServerName) {
-            console.log('[Voice] Reloading main panel for voice channel', channelId);
-            showChannelContent(lastSelectedChannel, lastSelectedServerName);
-          }
-        }
-        if (data.type === 'offer') {
-          await setupConnection();
-          await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
-          const answer = await pc.createAnswer();
-          await pc.setLocalDescription(answer);
-          socket.send(JSON.stringify({ type: 'signal', answer: pc.localDescription, room: channelId }));
-        }
-        if (data.type === 'answer') {
-          await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
-        }
-        if (data.type === 'candidate') {
-          await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
-        }
-      };
-      await setupConnection();
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      socket.send(JSON.stringify({ type: 'signal', offer: pc.localDescription, room: channelId }));
-      addVoiceUser({ id: userId, name: userName, avatar: userAvatar });
-      joinBtn.style.display = 'none';
-      leaveBtn.style.display = '';
-    };
-
-    leaveBtn.onclick = () => {
-      if (socket && socket.readyState === 1) {
-        socket.send(JSON.stringify({ type: 'leave', room: channelId, id: userId }));
-        socket.close();
-      }
-      if (pc) pc.close();
-      if (localStream) localStream.getTracks().forEach(t => t.stop());
-      removeVoiceUser(userId);
-      joinBtn.style.display = '';
-      leaveBtn.style.display = 'none';
-      // Remove peer audio elements
-      usersDiv.querySelectorAll('audio').forEach(a => a.remove());
-    };
-  }
-
-  // Add voice UI to all channels on page load (adjust selector as needed)
-  document.querySelectorAll('[data-channel-id]').forEach(ch => {
-    const id = ch.getAttribute('data-channel-id');
-    createVoiceChannelUI(id);
-  });
-
-  // --- Voice Channel UI CSS (add to style.css for Discord look) ---
-  // .voice-channel-ui { background: #23272a; padding: 8px; border-radius: 8px; margin-top: 8px; }
-  // .voice-join-btn, .voice-leave-btn { background: #5865f2; color: #fff; border: none; border-radius: 4px; margin-right: 8px; padding: 6px 12px; cursor: pointer; }
-  // .voice-users { display: flex; gap: 8px; margin-top: 8px; }
-  // .voice-user { display: flex; align-items: center; background: #2c2f33; border-radius: 4px; padding: 2px 8px; }
-  // .voice-avatar { width: 24px; height: 24px; border-radius: 50%; margin-right: 6px; }
-  // .voice-name { color: #fff; margin-right: 4px; font-size: 14px; }
-  // .voice-mic { color: #43b581; font-size: 16px; }
-
-  // Helper to update the main panel's voice user grid live
-  function updateMainVoicePanel(users) {
-    const mainPanel = document.querySelector('.main-panel');
-    if (!mainPanel) return;
-    // Only update if the main panel is showing the voice channel grid
-    const grid = mainPanel.querySelector('.voice-users-grid');
-    if (!grid) return;
-    grid.innerHTML = users.map(u => `
-      <div class="voice-user-tile">
-        <img class="voice-user-avatar" src="${u.avatar}" alt="Avatar">
-        <div class="voice-user-label">
-          <i class="fa fa-microphone" style="margin-right:6px;color:#43b581;"></i>
-          ${u.name}
-        </div>
-      </div>
-    `).join('');
-    // Adjust grid class for single/two users
-    grid.classList.remove('single-user', 'two-users');
-    if (users.length === 1) grid.classList.add('single-user');
-    else if (users.length === 2) grid.classList.add('two-users');
-  }
-
-  // Helper to re-render the full main panel for the voice channel
-  function renderMainVoicePanelFull(users) {
-    const mainPanel = document.querySelector('.main-panel');
-    if (!mainPanel) return;
-    // Only update if the main panel is showing the voice channel grid
-    const grid = mainPanel.querySelector('.voice-users-grid');
-    if (!grid) return;
-    // Re-render the full panel (header, grid, controls)
-    const header = `
-      <div class="main-chat-header">
-        <span class="main-chat-header-hash"><i class='fa fa-volume-up'></i></span>
-        <span class="main-chat-header-name">Voice Channel</span>
-      </div>
-    `;
-    const gridHtml = `
-      <div class="voice-main-content voice-users-grid">
-        ${users.map(u => `
-          <div class="voice-user-tile">
-            <img class="voice-user-avatar" src="${u.avatar}" alt="Avatar">
-            <div class="voice-user-label">
-              <i class="fa fa-microphone" style="margin-right:6px;color:#43b581;"></i>
-              ${u.name}
-            </div>
-          </div>
-        `).join('')}
-      </div>
-    `;
-    const controls = `
-      <div class="voice-controls-bar">
-        <button class="voice-control-btn voice-leave-btn" id="voice-leave-btn" title="Leave Call"><i class="fa fa-phone"></i></button>
-      </div>
-    `;
-    mainPanel.innerHTML = header + gridHtml + controls;
-    // Adjust grid class for single/two users
-    const gridDiv = mainPanel.querySelector('.voice-users-grid');
-    if (gridDiv) {
-      gridDiv.classList.remove('single-user', 'two-users');
-      if (users.length === 1) gridDiv.classList.add('single-user');
-      else if (users.length === 2) gridDiv.classList.add('two-users');
-    }
-    // Re-attach leave button event
-    const leaveBtn = mainPanel.querySelector('#voice-leave-btn');
-    if (leaveBtn) {
-      leaveBtn.onclick = () => {
-        if (socket && socket.readyState === 1) {
-          socket.send(JSON.stringify({ type: 'leave', room: channelId, id: userId }));
-          socket.close();
-        }
-        if (pc) pc.close();
-        if (localStream) localStream.getTracks().forEach(t => t.stop());
-        removeVoiceUser(userId);
-        // Remove peer audio elements
-        const usersDiv = document.querySelector('.voice-users');
-        if (usersDiv) usersDiv.querySelectorAll('audio').forEach(a => a.remove());
-        // Optionally, clear main panel
-        mainPanel.innerHTML = '<div class="main-voice-center-msg">You left the voice channel.</div>';
-      };
-    }
-  }
-
   // --- Voice Channel WebSocket Logic ---
   let voiceWebSocket = null;
   let voiceMembers = [];
   let hasJoined = false;
+  let currentVoiceChannelId = null; // Track the current voice channel ID for WebSocket
 
+  // Function to get user info by ID (from channelUserCache or fetch if missing)
+  async function getUserInfo(userId) {
+    if (channelUserCache[userId]) {
+      return channelUserCache[userId];
+    }
+    const { data, error } = await supabase.from('users').select('username, avatar_url').eq('id', userId).maybeSingle();
+    if (data) {
+      channelUserCache[userId] = data; // Cache it
+      return data;
+    }
+    return { username: 'Unknown', avatar_url: '' };
+  }
+
+  // Call this when a user joins a voice channel
   async function joinVoiceChannel(selectedChannel, currentUser) {
-    if (hasJoined) return;
-    hasJoined = true;
-
-    // Remove any existing connection
-    if (voiceWebSocket) {
-      voiceWebSocket.close();
-      voiceWebSocket = null;
+    if (hasJoined && currentVoiceChannelId === selectedChannel.id) {
+        console.log("Already joined this voice channel:", selectedChannel.name);
+        return;
     }
 
+    // Leave any previously joined channel
+    if (hasJoined && voiceWebSocket && voiceWebSocket.readyState === WebSocket.OPEN) {
+        console.log("Leaving previous voice channel before joining new one.");
+        await leaveVoiceChannel({ id: currentVoiceChannelId }, currentUser);
+    }
+
+    hasJoined = true;
+    currentVoiceChannelId = selectedChannel.id;
+
+    console.log(`Attempting to join voice channel: ${selectedChannel.name} (ID: ${selectedChannel.id}) with user: ${currentUser.displayname} (ID: ${currentUser.id})`);
+
     // Connect to WebSocket server
-    voiceWebSocket = new WebSocket(`ws://${window.location.host}`);
+    // IMPORTANT: Replace 'ws://localhost:3000' with your actual WebSocket server URL
+    // For deployment, this should be 'wss://your-backend-domain.com'
+    voiceWebSocket = new WebSocket('ws://localhost:3000'); // Assuming a local WebSocket server
 
     // On open, send join message
     voiceWebSocket.onopen = () => {
+      console.log('[Voice WebSocket] Connection opened. Sending join message.');
       voiceWebSocket.send(JSON.stringify({
         type: 'join',
         userId: currentUser.id,
@@ -2439,45 +2018,144 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 
     // Listen for updates
-    voiceWebSocket.onmessage = (event) => {
+    voiceWebSocket.onmessage = async (event) => {
       const data = JSON.parse(event.data);
       if (data.type === 'user_list_update' && data.room === selectedChannel.id) {
-        // Update voice members list
-        voiceMembers = data.users.map(uid => ({
-          user_id: uid,
-          muted: false,
-          users: channelUserCache[uid] || { username: 'Unknown', avatar_url: '' }
+        console.log('[Voice WebSocket] Received user_list_update for room', data.room, ':', data.users);
+        // Fetch user details for all UIDs in the list
+        const usersWithDetails = await Promise.all(data.users.map(async (uid) => {
+          const userInfo = await getUserInfo(uid);
+          return {
+            user_id: uid,
+            muted: false, // Mute status not managed by this simple WebSocket for now
+            users: userInfo
+          };
         }));
-        renderVoiceMembers();
+        voiceMembers = usersWithDetails;
+        renderVoiceMembers(); // Update the UI
       }
     };
 
     // Cleanup on close
-    voiceWebSocket.onclose = () => {
-      console.log('WebSocket closed');
+    voiceWebSocket.onclose = (event) => {
+      console.log('[Voice WebSocket] Connection closed:', event.code, event.reason);
       voiceWebSocket = null;
+      hasJoined = false;
+      currentVoiceChannelId = null;
+      // Clear voice members and update UI when WebSocket closes unexpectedly
+      voiceMembers = [];
+      renderVoiceMembers();
+      // Inform the user they left the channel (optional)
+      const mainPanel = document.querySelector('.main-panel');
+      if (mainPanel && selectedChannelId === selectedChannel.id && selectedChannel.type === 'voice') {
+          mainPanel.innerHTML = '<div class="main-voice-center-msg">You left the voice channel.</div>';
+          document.getElementById('voice-join-btn').style.display = '';
+          document.getElementById('voice-leave-btn').style.display = 'none';
+          document.getElementById('voice-mute-btn').style.display = 'none';
+      }
     };
+
+    // Error handling
+    voiceWebSocket.onerror = (error) => {
+      console.error('[Voice WebSocket] Error:', error);
+      // Optionally display an error message to the user
+    };
+
+    // Initial UI update for controls
+    const voiceJoinBtn = document.getElementById('voice-join-btn');
+    const voiceLeaveBtn = document.getElementById('voice-leave-btn');
+    const voiceMuteBtn = document.getElementById('voice-mute-btn');
+    if (voiceJoinBtn) voiceJoinBtn.style.display = 'none';
+    if (voiceLeaveBtn) voiceLeaveBtn.style.display = '';
+    if (voiceMuteBtn) voiceMuteBtn.style.display = '';
   }
 
+  // Call this when a user leaves a voice channel
   async function leaveVoiceChannel(selectedChannel, currentUser) {
-    hasJoined = false;
-    if (voiceWebSocket) {
-      voiceWebSocket.send(JSON.stringify({
-        type: 'leave',
-        userId: currentUser.id,
-        room: selectedChannel.id
-      }));
-      voiceWebSocket.close();
-      voiceWebSocket = null;
+    if (!voiceWebSocket || !hasJoined || currentVoiceChannelId !== selectedChannel.id) {
+        console.log("Not currently in this voice channel, or WebSocket not open.");
+        return;
     }
-    // Optionally clear UI
+    console.log(`Attempting to leave voice channel: ${selectedChannel.name} (ID: ${selectedChannel.id}) with user: ${currentUser.displayname} (ID: ${currentUser.id})`);
+
+    voiceWebSocket.send(JSON.stringify({
+      type: 'leave',
+      userId: currentUser.id,
+      room: selectedChannel.id
+    }));
+    voiceWebSocket.close(); // This will trigger the onclose event, handling cleanup
+
+    // Immediately update UI to reflect leaving (optional, but good for responsiveness)
+    hasJoined = false;
+    currentVoiceChannelId = null;
     voiceMembers = [];
     renderVoiceMembers();
+    const mainPanel = document.querySelector('.main-panel');
+    if (mainPanel && selectedChannelId === selectedChannel.id && selectedChannel.type === 'voice') {
+      mainPanel.innerHTML = '<div class="main-voice-center-msg">You left the voice channel.</div>';
+      document.getElementById('voice-join-btn').style.display = '';
+      document.getElementById('voice-leave-btn').style.display = 'none';
+      document.getElementById('voice-mute-btn').style.display = 'none';
+    }
   }
 
-  // Replace all Supabase-based voice channel member logic with the above WebSocket logic.
-  // Call joinVoiceChannel(selectedChannel, currentUser) when a user joins a voice channel.
-  // Call leaveVoiceChannel(selectedChannel, currentUser) when a user leaves a voice channel.
+  // Example renderVoiceMembers function (customize as needed)
+  function renderVoiceMembers() {
+    const mainPanel = document.querySelector('.main-panel');
+    if (!mainPanel) return;
+    const grid = mainPanel.querySelector('#voice-users-grid'); // Use the ID for the grid
+    if (!grid) return;
+
+    // Adjust grid class for single/two users based on the number of members
+    grid.classList.remove('single-user', 'two-users');
+    if (voiceMembers.length === 1) {
+      grid.classList.add('single-user');
+    } else if (voiceMembers.length === 2) {
+      grid.classList.add('two-users');
+    }
+
+    grid.innerHTML = voiceMembers.map(m => {
+      const u = m.users || {};
+      const avatar = u.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.username || 'User')}`;
+      const isMuted = m.muted; // Assuming mute status would come from WebSocket in future, or client-side toggle
+      return `
+        <div class="voice-user-tile">
+          <img class="voice-user-avatar" src="${avatar}" alt="Avatar">
+          <div class="voice-user-label">
+            <i class="fa ${isMuted ? 'fa-microphone-slash' : 'fa-microphone'}" style="margin-right:6px;${isMuted ? 'color:#e74c3c;' : ''}"></i>
+            ${u.username || 'Unknown'}
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // Simple client-side mute toggle (not communicating with server yet)
+  function toggleMute() {
+      const currentUser = getUserSession();
+      if (!currentUser) return;
+
+      const userIndex = voiceMembers.findIndex(m => m.user_id === currentUser.id);
+      if (userIndex !== -1) {
+          voiceMembers[userIndex].muted = !voiceMembers[userIndex].muted;
+          renderVoiceMembers(); // Re-render to show mute status
+          const muteBtn = document.getElementById('voice-mute-btn');
+          if (muteBtn) {
+              muteBtn.innerHTML = `<i class="fa ${voiceMembers[userIndex].muted ? 'fa-microphone-slash' : 'fa-microphone'}"></i>`;
+          }
+          console.log(`User ${currentUser.displayname} muted status: ${voiceMembers[userIndex].muted}`);
+      }
+  }
+
+  // Add event listener for window unload to leave voice channel cleanly
+  window.addEventListener('beforeunload', async () => {
+    const currentUser = getUserSession();
+    if (hasJoined && currentUser && lastSelectedChannel && lastSelectedChannel.type === 'voice') {
+      await leaveVoiceChannel(lastSelectedChannel, currentUser);
+    }
+  });
+
+  // --- End Voice Channel WebSocket Logic ---
 });
 
 // Add CSS for animation at the end of the file if not present
@@ -2524,4 +2202,4 @@ style.innerHTML = `
   100% { text-shadow: 0 0 24px #43b581cc, 0 0 8px #fff; }
 }
 `;
-document.head.appendChild(style); 
+document.head.appendChild(style);
