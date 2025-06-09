@@ -2410,6 +2410,74 @@ document.addEventListener('DOMContentLoaded', function() {
       };
     }
   }
+
+  // --- Voice Channel WebSocket Logic ---
+  let voiceWebSocket = null;
+  let voiceMembers = [];
+  let hasJoined = false;
+
+  async function joinVoiceChannel(selectedChannel, currentUser) {
+    if (hasJoined) return;
+    hasJoined = true;
+
+    // Remove any existing connection
+    if (voiceWebSocket) {
+      voiceWebSocket.close();
+      voiceWebSocket = null;
+    }
+
+    // Connect to WebSocket server
+    voiceWebSocket = new WebSocket(`ws://${window.location.host}`);
+
+    // On open, send join message
+    voiceWebSocket.onopen = () => {
+      voiceWebSocket.send(JSON.stringify({
+        type: 'join',
+        userId: currentUser.id,
+        room: selectedChannel.id
+      }));
+    };
+
+    // Listen for updates
+    voiceWebSocket.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === 'user_list_update' && data.room === selectedChannel.id) {
+        // Update voice members list
+        voiceMembers = data.users.map(uid => ({
+          user_id: uid,
+          muted: false,
+          users: channelUserCache[uid] || { username: 'Unknown', avatar_url: '' }
+        }));
+        renderVoiceMembers();
+      }
+    };
+
+    // Cleanup on close
+    voiceWebSocket.onclose = () => {
+      console.log('WebSocket closed');
+      voiceWebSocket = null;
+    };
+  }
+
+  async function leaveVoiceChannel(selectedChannel, currentUser) {
+    hasJoined = false;
+    if (voiceWebSocket) {
+      voiceWebSocket.send(JSON.stringify({
+        type: 'leave',
+        userId: currentUser.id,
+        room: selectedChannel.id
+      }));
+      voiceWebSocket.close();
+      voiceWebSocket = null;
+    }
+    // Optionally clear UI
+    voiceMembers = [];
+    renderVoiceMembers();
+  }
+
+  // Replace all Supabase-based voice channel member logic with the above WebSocket logic.
+  // Call joinVoiceChannel(selectedChannel, currentUser) when a user joins a voice channel.
+  // Call leaveVoiceChannel(selectedChannel, currentUser) when a user leaves a voice channel.
 });
 
 // Add CSS for animation at the end of the file if not present
