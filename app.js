@@ -48,6 +48,41 @@ function isValidUUID(uuid) {
 let lastSelectedChannel = null;
 let lastSelectedServerName = null;
 
+// --- GLOBAL WEBSOCKET FOR VOICE CHANNELS ---
+const ws = new WebSocket('wss://YOUR-RENDER-URL'); // Replace with your Render WebSocket URL
+
+// Listen for all user_list_update events globally
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  if (data.type === 'user_list_update') {
+    if (data.room === selectedChannelId) {
+      updateVoiceUsers(data.users);
+    }
+  }
+};
+
+// Join voice channel (call this when user joins a channel)
+function joinVoiceChannel(channelId, userId, userName, userAvatar) {
+  ws.send(JSON.stringify({
+    type: 'join',
+    room: channelId,
+    id: userId,
+    name: userName,
+    avatar: userAvatar
+  }));
+  selectedChannelId = channelId;
+}
+
+// Leave voice channel (call this when user leaves a channel)
+function leaveVoiceChannel(channelId, userId) {
+  ws.send(JSON.stringify({
+    type: 'leave',
+    room: channelId,
+    id: userId
+  }));
+  selectedChannelId = null;
+}
+
 document.addEventListener('DOMContentLoaded', function() {
   // Global error handler for unhandled promise rejections
   window.addEventListener('unhandledrejection', function(event) {
