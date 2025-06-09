@@ -49,7 +49,7 @@ let lastSelectedChannel = null;
 let lastSelectedServerName = null;
 
 // --- GLOBAL WEBSOCKET FOR VOICE CHANNELS ---
-const ws = new WebSocket('wss://YOUR-RENDER-URL'); // Replace with your Render WebSocket URL
+const ws = new WebSocket('wss://your-app-name.onrender.com'); // Replace with your actual Render WebSocket URL
 
 // Listen for all user_list_update events globally
 ws.onmessage = (event) => {
