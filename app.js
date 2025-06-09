@@ -1969,47 +1969,26 @@ document.addEventListener('DOMContentLoaded', function() {
   let voiceWebSocket = null;
   let voiceMembers = [];
   let hasJoined = false;
-  let currentVoiceChannelId = null; // Track the current voice channel ID for WebSocket
 
-  // Function to get user info by ID (from channelUserCache or fetch if missing)
-  async function getUserInfo(userId) {
-    if (channelUserCache[userId]) {
-      return channelUserCache[userId];
-    }
-    const { data, error } = await supabase.from('users').select('username, avatar_url').eq('id', userId).maybeSingle();
-    if (data) {
-      channelUserCache[userId] = data; // Cache it
-      return data;
-    }
-    return { username: 'Unknown', avatar_url: '' };
-  }
+  // Replace with your actual Render public URL (e.g. 'wss://your-app-name.onrender.com')
+  const WEBSOCKET_URL = 'wss://your-app-name.onrender.com';
 
   // Call this when a user joins a voice channel
   async function joinVoiceChannel(selectedChannel, currentUser) {
-    if (hasJoined && currentVoiceChannelId === selectedChannel.id) {
-        console.log("Already joined this voice channel:", selectedChannel.name);
-        return;
-    }
-
-    // Leave any previously joined channel
-    if (hasJoined && voiceWebSocket && voiceWebSocket.readyState === WebSocket.OPEN) {
-        console.log("Leaving previous voice channel before joining new one.");
-        await leaveVoiceChannel({ id: currentVoiceChannelId }, currentUser);
-    }
-
+    if (hasJoined) return;
     hasJoined = true;
-    currentVoiceChannelId = selectedChannel.id;
 
-    console.log(`Attempting to join voice channel: ${selectedChannel.name} (ID: ${selectedChannel.id}) with user: ${currentUser.displayname} (ID: ${currentUser.id})`);
+    // Remove any existing connection
+    if (voiceWebSocket) {
+      voiceWebSocket.close();
+      voiceWebSocket = null;
+    }
 
     // Connect to WebSocket server
-    // IMPORTANT: Replace 'ws://localhost:3000' with your actual WebSocket server URL
-    // For deployment, this should be 'wss://your-backend-domain.com'
-    voiceWebSocket = new WebSocket('ws://localhost:3000'); // Assuming a local WebSocket server
+    voiceWebSocket = new WebSocket(WEBSOCKET_URL);
 
     // On open, send join message
     voiceWebSocket.onopen = () => {
-      console.log('[Voice WebSocket] Connection opened. Sending join message.');
       voiceWebSocket.send(JSON.stringify({
         type: 'join',
         userId: currentUser.id,
@@ -2018,117 +1997,71 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 
     // Listen for updates
-    voiceWebSocket.onmessage = async (event) => {
+    voiceWebSocket.onmessage = (event) => {
       const data = JSON.parse(event.data);
       if (data.type === 'user_list_update' && data.room === selectedChannel.id) {
-        console.log('[Voice WebSocket] Received user_list_update for room', data.room, ':', data.users);
-        // Fetch user details for all UIDs in the list
-        const usersWithDetails = await Promise.all(data.users.map(async (uid) => {
-          const userInfo = await getUserInfo(uid);
-          return {
-            user_id: uid,
-            muted: false, // Mute status not managed by this simple WebSocket for now
-            users: userInfo
-          };
+        // Update voice members list
+        voiceMembers = data.users.map(uid => ({
+          user_id: uid,
+          muted: false,
+          users: channelUserCache[uid] || { username: 'Unknown', avatar_url: '' }
         }));
-        voiceMembers = usersWithDetails;
-        renderVoiceMembers(); // Update the UI
+        renderVoiceMembers();
       }
+    };
+
+    // Handle connection errors
+    voiceWebSocket.onerror = (event) => {
+      console.error('[Voice WebSocket] Error:', event);
+      // Optionally show a UI warning
     };
 
     // Cleanup on close
     voiceWebSocket.onclose = (event) => {
-      console.log('[Voice WebSocket] Connection closed:', event.code, event.reason);
+      console.log('[Voice WebSocket] Connection closed:', event.code, event.reason || '');
       voiceWebSocket = null;
-      hasJoined = false;
-      currentVoiceChannelId = null;
-      // Clear voice members and update UI when WebSocket closes unexpectedly
-      voiceMembers = [];
-      renderVoiceMembers();
-      // Inform the user they left the channel (optional)
-      const mainPanel = document.querySelector('.main-panel');
-      if (mainPanel && selectedChannelId === selectedChannel.id && selectedChannel.type === 'voice') {
-          mainPanel.innerHTML = '<div class="main-voice-center-msg">You left the voice channel.</div>';
-          document.getElementById('voice-join-btn').style.display = '';
-          document.getElementById('voice-leave-btn').style.display = 'none';
-          document.getElementById('voice-mute-btn').style.display = 'none';
-      }
+      // Optionally update UI to show disconnected state
     };
-
-    // Error handling
-    voiceWebSocket.onerror = (error) => {
-      console.error('[Voice WebSocket] Error:', error);
-      // Optionally display an error message to the user
-    };
-
-    // Initial UI update for controls
-    const voiceJoinBtn = document.getElementById('voice-join-btn');
-    const voiceLeaveBtn = document.getElementById('voice-leave-btn');
-    const voiceMuteBtn = document.getElementById('voice-mute-btn');
-    if (voiceJoinBtn) voiceJoinBtn.style.display = 'none';
-    if (voiceLeaveBtn) voiceLeaveBtn.style.display = '';
-    if (voiceMuteBtn) voiceMuteBtn.style.display = '';
   }
 
   // Call this when a user leaves a voice channel
   async function leaveVoiceChannel(selectedChannel, currentUser) {
-    if (!voiceWebSocket || !hasJoined || currentVoiceChannelId !== selectedChannel.id) {
-        console.log("Not currently in this voice channel, or WebSocket not open.");
-        return;
-    }
-    console.log(`Attempting to leave voice channel: ${selectedChannel.name} (ID: ${selectedChannel.id}) with user: ${currentUser.displayname} (ID: ${currentUser.id})`);
-
-    voiceWebSocket.send(JSON.stringify({
-      type: 'leave',
-      userId: currentUser.id,
-      room: selectedChannel.id
-    }));
-    voiceWebSocket.close(); // This will trigger the onclose event, handling cleanup
-
-    // Immediately update UI to reflect leaving (optional, but good for responsiveness)
     hasJoined = false;
-    currentVoiceChannelId = null;
+    if (voiceWebSocket) {
+      voiceWebSocket.send(JSON.stringify({
+        type: 'leave',
+        userId: currentUser.id,
+        room: selectedChannel.id
+      }));
+      voiceWebSocket.close();
+      voiceWebSocket = null;
+    }
+    // Optionally clear UI
     voiceMembers = [];
     renderVoiceMembers();
-    const mainPanel = document.querySelector('.main-panel');
-    if (mainPanel && selectedChannelId === selectedChannel.id && selectedChannel.type === 'voice') {
-      mainPanel.innerHTML = '<div class="main-voice-center-msg">You left the voice channel.</div>';
-      document.getElementById('voice-join-btn').style.display = '';
-      document.getElementById('voice-leave-btn').style.display = 'none';
-      document.getElementById('voice-mute-btn').style.display = 'none';
-    }
   }
 
   // Example renderVoiceMembers function (customize as needed)
   function renderVoiceMembers() {
     const mainPanel = document.querySelector('.main-panel');
     if (!mainPanel) return;
-    const grid = mainPanel.querySelector('#voice-users-grid'); // Use the ID for the grid
+    const grid = mainPanel.querySelector('.voice-users-grid');
     if (!grid) return;
-
-    // Adjust grid class for single/two users based on the number of members
-    grid.classList.remove('single-user', 'two-users');
-    if (voiceMembers.length === 1) {
-      grid.classList.add('single-user');
-    } else if (voiceMembers.length === 2) {
-      grid.classList.add('two-users');
-    }
-
     grid.innerHTML = voiceMembers.map(m => {
       const u = m.users || {};
       const avatar = u.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.username || 'User')}`;
-      const isMuted = m.muted; // Assuming mute status would come from WebSocket in future, or client-side toggle
       return `
         <div class="voice-user-tile">
           <img class="voice-user-avatar" src="${avatar}" alt="Avatar">
           <div class="voice-user-label">
-            <i class="fa ${isMuted ? 'fa-microphone-slash' : 'fa-microphone'}" style="margin-right:6px;${isMuted ? 'color:#e74c3c;' : ''}"></i>
+            <i class="fa fa-microphone" style="margin-right:6px;"></i>
             ${u.username || 'Unknown'}
           </div>
         </div>
       `;
     }).join('');
   }
+  // --- End Voice Channel WebSocket Logic ---
 
   // Simple client-side mute toggle (not communicating with server yet)
   function toggleMute() {
@@ -2154,8 +2087,6 @@ document.addEventListener('DOMContentLoaded', function() {
       await leaveVoiceChannel(lastSelectedChannel, currentUser);
     }
   });
-
-  // --- End Voice Channel WebSocket Logic ---
 });
 
 // Add CSS for animation at the end of the file if not present
