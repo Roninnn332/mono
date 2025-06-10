@@ -34,6 +34,10 @@ let currentRealtimeChannelId = null;
 let lastSelectedChannel = null;
 let lastSelectedServerName = null;
 
+// Add these for DM realtime and polling management
+let dmRealtimeSubscription = null;
+let dmPollingInterval = null;
+
 document.addEventListener('DOMContentLoaded', function() {
   // Global error handler for unhandled promise rejections
   window.addEventListener('unhandledrejection', function(event) {
@@ -1608,104 +1612,6 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   // --- DM CHAT LOGIC ---
-  function renderFriendsList() {
-    friendsListPanel.innerHTML = '<div class="friends-list-title">Friends</div>';
-    supabase
-      .from('friends')
-      .select('id, user_id, friend_id, status, user:user_id(username, avatar_url, friend_code, banner_url), friend:friend_id(username, avatar_url, friend_code, banner_url)')
-      .or(`user_id.eq.${currentUser.id},friend_id.eq.${currentUser.id}`)
-      .eq('status', 'accepted')
-      .then(({ data, error }) => {
-        if (error || !data || data.length === 0) {
-          friendsListPanel.innerHTML += '<div class="friends-list-empty">No friends yet.</div>';
-          return;
-        }
-        const friends = data.map(row => {
-          const isSelfUser = row.user_id === currentUser.id;
-          const friendUser = isSelfUser ? row.friend : row.user;
-          const friendId = isSelfUser ? row.friend_id : row.user_id;
-          return {
-            id: friendId,
-            username: friendUser?.username || 'Unknown',
-            avatar_url: friendUser?.avatar_url || '',
-            friend_code: friendUser?.friend_code || '',
-            banner_url: friendUser?.banner_url || '',
-            status: 'Online',
-          };
-        });
-        friends.forEach(friend => {
-          const card = document.createElement('div');
-          card.className = 'friend-card';
-          card.innerHTML = `
-            <img class="friend-avatar friend-avatar-clickable" src="${friend.avatar_url}" alt="Avatar" style="cursor:pointer;">
-            <span class="friend-username friend-username-clickable" style="cursor:pointer;">${friend.username}</span>
-            <button class="friend-menu-btn" title="More options"><i class="fa fa-ellipsis-v"></i></button>
-          `;
-          // Avatar click: show popover
-          card.querySelector('.friend-avatar-clickable').addEventListener('click', (e) => {
-            e.stopPropagation();
-            showFriendPopover(friend, e.target);
-          });
-          // Name click: open DM chat
-          card.querySelector('.friend-username-clickable').addEventListener('click', () => openDMChat(friend));
-          // 3-dots menu logic
-          card.querySelector('.friend-menu-btn').addEventListener('click', (e) => {
-            e.stopPropagation();
-            showFriendMenu(friend, e.target, card);
-          });
-          friendsListPanel.appendChild(card);
-        });
-      });
-  }
-
-  // Popover logic
-  let friendPopover = null;
-  function showFriendPopover(friend, anchorEl) {
-    closeFriendPopover();
-    friendPopover = document.createElement('div');
-    friendPopover.className = 'friend-popover';
-    friendPopover.innerHTML = `
-      <div class="friend-popover-banner" style="background-image:url('${friend.banner_url || ''}');"></div>
-      <div class="friend-popover-avatar-outer">
-        <img class="friend-popover-avatar" src="${friend.avatar_url}" alt="Avatar">
-      </div>
-      <div class="friend-popover-name">${friend.username}</div>
-      <div class="friend-popover-id">#${friend.friend_code}</div>
-    `;
-    document.body.appendChild(friendPopover);
-    // Position popover near avatar
-    const rect = anchorEl.getBoundingClientRect();
-    const popoverRect = friendPopover.getBoundingClientRect();
-    let top = rect.bottom + window.scrollY + 8;
-    let left = rect.left + window.scrollX - popoverRect.width / 2 + rect.width / 2;
-    // Clamp to viewport
-    left = Math.max(12, Math.min(left, window.innerWidth - popoverRect.width - 12));
-    friendPopover.style.top = `${top}px`;
-    friendPopover.style.left = `${left}px`;
-    // Animate in
-    setTimeout(() => friendPopover.classList.add('active'), 10);
-    // Close on outside click
-    setTimeout(() => {
-      document.addEventListener('mousedown', handlePopoverOutsideClick);
-    }, 0);
-  }
-  function closeFriendPopover() {
-    if (friendPopover) {
-      friendPopover.classList.remove('active');
-      setTimeout(() => {
-        if (friendPopover && friendPopover.parentNode) friendPopover.parentNode.removeChild(friendPopover);
-        friendPopover = null;
-      }, 180);
-      document.removeEventListener('mousedown', handlePopoverOutsideClick);
-    }
-  }
-  function handlePopoverOutsideClick(e) {
-    if (friendPopover && !friendPopover.contains(e.target)) {
-      closeFriendPopover();
-    }
-  }
-
-  // Open DM chat with a friend
   async function openDMChat(friend) {
     hideDefaultWelcome();
     currentOpenDMFriendId = friend.id;
@@ -1755,6 +1661,38 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('dm-chat-input').addEventListener('keydown', e => {
       if (e.key === 'Enter') sendDMMessage(friend.id);
     });
+
+    // --- LIVE DM UPDATES: CLEANUP, SUBSCRIBE, POLL ---
+    // Clean up previous subscription and polling
+    if (dmRealtimeSubscription) {
+      supabase.removeChannel(dmRealtimeSubscription);
+      dmRealtimeSubscription = null;
+    }
+    if (dmPollingInterval) {
+      clearInterval(dmPollingInterval);
+      dmPollingInterval = null;
+    }
+    // Subscribe to realtime updates for this DM
+    dmRealtimeSubscription = supabase.channel('realtime:direct_messages')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'direct_messages'
+      }, payload => {
+        const msg = payload.new || payload.old;
+        if (
+          (msg.sender_id === currentUser.id && msg.receiver_id === friend.id) ||
+          (msg.sender_id === friend.id && msg.receiver_id === currentUser.id)
+        ) {
+          loadDMMessages(friend.id);
+        }
+        updateDMUnreadBadge();
+      })
+      .subscribe();
+    // Fallback polling every 4 seconds
+    dmPollingInterval = setInterval(() => {
+      loadDMMessages(friend.id);
+    }, 4000);
   }
 
   // Load DM messages (final fix for .or() filter)
