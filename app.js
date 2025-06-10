@@ -1741,8 +1741,10 @@ document.addEventListener('DOMContentLoaded', function() {
       clearInterval(dmPollingInterval);
       dmPollingInterval = null;
     }
-    // Subscribe to realtime updates for this DM
-    dmRealtimeSubscription = supabase.channel('realtime:direct_messages')
+    // Use a unique channel name for each DM
+    const currentUser = getUserSession();
+    const channelName = `realtime:direct_messages:${[currentUser.id, friend.id].sort().join('-')}`;
+    dmRealtimeSubscription = supabase.channel(channelName)
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
