@@ -707,7 +707,6 @@ document.addEventListener('DOMContentLoaded', function() {
   function setSelectedServer(serverId) {
     // Clear all voice channel user lists from sidebar
     voiceChannelUsers = {};
-    updateVoiceChannelUserLists();
     selectedServerId = serverId;
     // Hide join-server UI
     const sidebarTabs = document.getElementById('sidebar-tabs');
@@ -1978,30 +1977,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
   const WEBSOCKET_URL = 'wss://mono-luor.onrender.com';
 
-  // Helper to update the user list under each voice channel in the channels section
-  function updateVoiceChannelUserLists() {
-    document.querySelectorAll('.voice-channel-users-list').forEach(el => el.remove());
-    Object.entries(voiceChannelUsers).forEach(([channelId, users]) => {
-      // Only add user list under actual voice channel buttons (not Create Channel, etc.)
-      const channelBtn = document.querySelector(`.channel-btn[data-voice-channel-id="${channelId}"]`);
-      if (
-        channelBtn &&
-        channelBtn.querySelector('.fa-volume-up') &&
-        !channelBtn.classList.contains('create-channel-btn')
-      ) {
-        let html = '';
-        if (users.length > 0) {
-          html = `<div class="voice-channel-users-list">` +
-            users.map(u => {
-              const avatar = u.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.username || 'User')}`;
-              return `<div class="voice-channel-user-mini"><img src="${avatar}" class="voice-channel-user-mini-avatar" alt="Avatar"><span>${u.username || 'Unknown'}</span></div>`;
-            }).join('') + '</div>';
-        }
-        channelBtn.insertAdjacentHTML('afterend', html);
-      }
-    });
-  }
-
   // Call this when a user joins a voice channel
   async function joinVoiceChannel(selectedChannel, currentUser) {
     if (hasJoined) return;
@@ -2024,7 +1999,6 @@ document.addEventListener('DOMContentLoaded', function() {
         // Update mapping for all rooms
         if (data.room && Array.isArray(data.users)) {
           voiceChannelUsers[data.room] = data.users.map(uid => channelUserCache[uid] || { username: 'Unknown', avatar_url: '' });
-          updateVoiceChannelUserLists();
         }
         // If this is the current channel, update main panel
         if (data.room === selectedChannel.id) {
@@ -2060,7 +2034,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Remove user from the mini user list for this channel
     if (voiceChannelUsers[selectedChannel.id]) {
       voiceChannelUsers[selectedChannel.id] = voiceChannelUsers[selectedChannel.id].filter(u => u.id !== currentUser.id);
-      updateVoiceChannelUserLists();
     }
     // Optionally clear UI
     voiceMembers = [];

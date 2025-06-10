@@ -2379,31 +2379,3 @@ input:checked + .slider:before {
 .voice-users-grid.two-users .voice-user-tile:last-child {
   margin-right: 0;
 }
-
-.voice-channel-users-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-left: 36px;
-  margin-bottom: 10px;
-  margin-top: -2px;
-  padding-left: 8px;
-  border-left: 2px solid #43b58133;
-}
-.voice-channel-user-mini {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 1.01rem;
-  color: #b9bbbe;
-  padding: 2px 0 2px 0;
-}
-.voice-channel-user-mini-avatar {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 2px solid #43b58144;
-  background: #23272a;
-  margin-right: 4px;
-}
