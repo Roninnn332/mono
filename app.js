@@ -705,8 +705,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // When a server is selected, hide the join-server section and show channels
   function setSelectedServer(serverId) {
-    // Clear all voice channel user lists from sidebar
-    voiceChannelUsers = {};
+    // Hide friends list panel and sidebar tabs when switching to a server
+    if (typeof friendsListPanel !== 'undefined') friendsListPanel.style.display = 'none';
+    if (typeof sidebarTabs !== 'undefined') sidebarTabs.style.display = 'none';
     selectedServerId = serverId;
     // Hide join-server UI
     const sidebarTabs = document.getElementById('sidebar-tabs');
