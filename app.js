@@ -1613,7 +1613,7 @@ document.addEventListener('DOMContentLoaded', function() {
     friendsListPanel.innerHTML = '<div class="friends-list-title">Friends</div>';
     supabase
       .from('friends')
-      .select('id, user_id, friend_id, status, user:user_id(username, avatar_url, friend_code), friend:friend_id(username, avatar_url, friend_code)')
+      .select('id, user_id, friend_id, status, user:user_id(username, avatar_url, friend_code, banner_url), friend:friend_id(username, avatar_url, friend_code, banner_url)')
       .or(`user_id.eq.${currentUser.id},friend_id.eq.${currentUser.id}`)
       .eq('status', 'accepted')
       .then(({ data, error }) => {
@@ -1630,6 +1630,7 @@ document.addEventListener('DOMContentLoaded', function() {
             username: friendUser?.username || 'Unknown',
             avatar_url: friendUser?.avatar_url || '',
             friend_code: friendUser?.friend_code || '',
+            banner_url: friendUser?.banner_url || '',
             status: 'Online',
           };
         });
@@ -1637,14 +1638,67 @@ document.addEventListener('DOMContentLoaded', function() {
           const card = document.createElement('div');
           card.className = 'friend-card';
           card.innerHTML = `
-            <img class="friend-avatar" src="${friend.avatar_url}" alt="Avatar">
-            <span class="friend-username">${friend.username}</span>
+            <img class="friend-avatar friend-avatar-clickable" src="${friend.avatar_url}" alt="Avatar" style="cursor:pointer;">
+            <span class="friend-username friend-username-clickable" style="cursor:pointer;">${friend.username}</span>
             <span class="friend-status">${friend.status}</span>
           `;
-          card.addEventListener('click', () => openDMChat(friend));
+          // Avatar click: show popover
+          card.querySelector('.friend-avatar-clickable').addEventListener('click', (e) => {
+            e.stopPropagation();
+            showFriendPopover(friend, e.target);
+          });
+          // Name click: open DM chat
+          card.querySelector('.friend-username-clickable').addEventListener('click', () => openDMChat(friend));
           friendsListPanel.appendChild(card);
         });
       });
+  }
+
+  // Popover logic
+  let friendPopover = null;
+  function showFriendPopover(friend, anchorEl) {
+    closeFriendPopover();
+    friendPopover = document.createElement('div');
+    friendPopover.className = 'friend-popover';
+    friendPopover.innerHTML = `
+      <div class="friend-popover-banner" style="background-image:url('${friend.banner_url || ''}');"></div>
+      <div class="friend-popover-avatar-outer">
+        <img class="friend-popover-avatar" src="${friend.avatar_url}" alt="Avatar">
+      </div>
+      <div class="friend-popover-name">${friend.username}</div>
+      <div class="friend-popover-id">#${friend.friend_code}</div>
+    `;
+    document.body.appendChild(friendPopover);
+    // Position popover near avatar
+    const rect = anchorEl.getBoundingClientRect();
+    const popoverRect = friendPopover.getBoundingClientRect();
+    let top = rect.bottom + window.scrollY + 8;
+    let left = rect.left + window.scrollX - popoverRect.width / 2 + rect.width / 2;
+    // Clamp to viewport
+    left = Math.max(12, Math.min(left, window.innerWidth - popoverRect.width - 12));
+    friendPopover.style.top = `${top}px`;
+    friendPopover.style.left = `${left}px`;
+    // Animate in
+    setTimeout(() => friendPopover.classList.add('active'), 10);
+    // Close on outside click
+    setTimeout(() => {
+      document.addEventListener('mousedown', handlePopoverOutsideClick);
+    }, 0);
+  }
+  function closeFriendPopover() {
+    if (friendPopover) {
+      friendPopover.classList.remove('active');
+      setTimeout(() => {
+        if (friendPopover && friendPopover.parentNode) friendPopover.parentNode.removeChild(friendPopover);
+        friendPopover = null;
+      }, 180);
+      document.removeEventListener('mousedown', handlePopoverOutsideClick);
+    }
+  }
+  function handlePopoverOutsideClick(e) {
+    if (friendPopover && !friendPopover.contains(e.target)) {
+      closeFriendPopover();
+    }
   }
 
   // Open DM chat with a friend
@@ -1994,8 +2048,8 @@ document.addEventListener('DOMContentLoaded', function() {
       }));
     };
     voiceWebSocket.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.type === 'user_list_update') {
+        const data = JSON.parse(event.data);
+        if (data.type === 'user_list_update') {
         // Update mapping for all rooms
         if (data.room && Array.isArray(data.users)) {
           voiceChannelUsers[data.room] = data.users.map(uid => channelUserCache[uid] || { username: 'Unknown', avatar_url: '' });
@@ -2053,8 +2107,8 @@ document.addEventListener('DOMContentLoaded', function() {
       return `
           <div class="voice-user-tile ${colorClass}">
             <img class="voice-user-avatar" src="${avatar}" alt="Avatar">
-          </div>
-      `;
+      </div>
+    `;
     }).join('');
   }
   // --- End Voice Channel WebSocket Logic ---
