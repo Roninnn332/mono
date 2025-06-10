@@ -2251,12 +2251,25 @@ input:checked + .slider:before {
   border-radius: 50%;
   object-fit: cover;
   border: 4px solid;
-  border-image: linear-gradient(135deg, #43b581 40%, #4a90e2 100%) 1;
+  border-image: none;
+  border-color: transparent;
   background: #18191c;
   margin-bottom: 18px;
   box-shadow: 0 2px 16px #43b58133;
   position: relative;
+  /* Remove box border, keep only circular border if needed */
 }
+
+/* User tile color variants */
+.voice-user-tile.color-1 { background: linear-gradient(120deg, #23272a 0%, #43b581 100%); }
+.voice-user-tile.color-2 { background: linear-gradient(120deg, #23272a 0%, #4a90e2 100%); }
+.voice-user-tile.color-3 { background: linear-gradient(120deg, #23272a 0%, #e67e22 100%); }
+.voice-user-tile.color-4 { background: linear-gradient(120deg, #23272a 0%, #e74c3c 100%); }
+.voice-user-tile.color-5 { background: linear-gradient(120deg, #23272a 0%, #9b59b6 100%); }
+.voice-user-tile.color-6 { background: linear-gradient(120deg, #23272a 0%, #1abc9c 100%); }
+.voice-user-tile.color-7 { background: linear-gradient(120deg, #23272a 0%, #f1c40f 100%); }
+.voice-user-tile.color-8 { background: linear-gradient(120deg, #23272a 0%, #2ecc71 100%); }
+
 .voice-user-avatar::after {
   content: '';
   position: absolute;

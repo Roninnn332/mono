@@ -2060,11 +2060,12 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!mainPanel) return;
     const grid = mainPanel.querySelector('.voice-users-grid');
     if (!grid) return;
-    grid.innerHTML = voiceMembers.map(m => {
+    grid.innerHTML = voiceMembers.map((m, idx) => {
       const u = m.users || {};
       const avatar = u.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.username || 'User')}`;
+      const colorClass = `color-${(idx % 8) + 1}`;
       return `
-          <div class="voice-user-tile">
+          <div class="voice-user-tile ${colorClass}">
           <img class="voice-user-avatar" src="${avatar}" alt="Avatar">
             <div class="voice-user-label">
             <i class="fa fa-microphone" style="margin-right:6px;"></i>
