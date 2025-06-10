@@ -1979,9 +1979,13 @@ document.addEventListener('DOMContentLoaded', function() {
   function updateVoiceChannelUserLists() {
     document.querySelectorAll('.voice-channel-users-list').forEach(el => el.remove());
     Object.entries(voiceChannelUsers).forEach(([channelId, users]) => {
-      // Only add user list under voice channel buttons
+      // Only add user list under actual voice channel buttons (not Create Channel, etc.)
       const channelBtn = document.querySelector(`.channel-btn[data-voice-channel-id="${channelId}"]`);
-      if (channelBtn && channelBtn.querySelector('.fa-volume-up')) {
+      if (
+        channelBtn &&
+        channelBtn.querySelector('.fa-volume-up') &&
+        !channelBtn.classList.contains('create-channel-btn')
+      ) {
         let html = '';
         if (users.length > 0) {
           html = `<div class="voice-channel-users-list">` +
