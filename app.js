@@ -785,6 +785,7 @@ document.addEventListener('DOMContentLoaded', function() {
             selectedChannelId = channel.id;
             showChannelContent(channel, data[0].name);
           });
+          btn.setAttribute('data-voice-channel-id', channel.id);
           fragment.appendChild(btn);
         });
       }
@@ -1969,24 +1970,39 @@ document.addEventListener('DOMContentLoaded', function() {
   let voiceWebSocket = null;
   let voiceMembers = [];
   let hasJoined = false;
+  // New: Track users in all voice channels
+  let voiceChannelUsers = {}; // { channelId: [userObj, ...] }
 
-  // Replace with your actual Render public URL (e.g. 'wss://your-app-name.onrender.com')
   const WEBSOCKET_URL = 'wss://mono-luor.onrender.com';
+
+  // Helper to update the user list under each voice channel in the channels section
+  function updateVoiceChannelUserLists() {
+    document.querySelectorAll('.voice-channel-users-list').forEach(el => el.remove());
+    Object.entries(voiceChannelUsers).forEach(([channelId, users]) => {
+      const channelBtn = document.querySelector(`.channel-btn[data-voice-channel-id="${channelId}"]`);
+      if (channelBtn) {
+        let html = '';
+        if (users.length > 0) {
+          html = `<div class="voice-channel-users-list">` +
+            users.map(u => {
+              const avatar = u.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.username || 'User')}`;
+              return `<div class="voice-channel-user-mini"><img src="${avatar}" class="voice-channel-user-mini-avatar" alt="Avatar"><span>${u.username || 'Unknown'}</span></div>`;
+            }).join('') + '</div>';
+        }
+        channelBtn.insertAdjacentHTML('afterend', html);
+      }
+    });
+  }
+
   // Call this when a user joins a voice channel
   async function joinVoiceChannel(selectedChannel, currentUser) {
     if (hasJoined) return;
     hasJoined = true;
-
-    // Remove any existing connection
     if (voiceWebSocket) {
       voiceWebSocket.close();
       voiceWebSocket = null;
     }
-
-    // Connect to WebSocket server
     voiceWebSocket = new WebSocket(WEBSOCKET_URL);
-
-    // On open, send join message
     voiceWebSocket.onopen = () => {
       voiceWebSocket.send(JSON.stringify({
         type: 'join',
@@ -1994,32 +2010,30 @@ document.addEventListener('DOMContentLoaded', function() {
         room: selectedChannel.id
       }));
     };
-
-    // Listen for updates
     voiceWebSocket.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-      if (data.type === 'user_list_update' && data.room === selectedChannel.id) {
-        // Update voice members list
-        voiceMembers = data.users.map(uid => ({
-          user_id: uid,
-          muted: false,
-          users: channelUserCache[uid] || { username: 'Unknown', avatar_url: '' }
-        }));
-        renderVoiceMembers();
+      const data = JSON.parse(event.data);
+      if (data.type === 'user_list_update') {
+        // Update mapping for all rooms
+        if (data.room && Array.isArray(data.users)) {
+          voiceChannelUsers[data.room] = data.users.map(uid => channelUserCache[uid] || { username: 'Unknown', avatar_url: '' });
+          updateVoiceChannelUserLists();
+        }
+        // If this is the current channel, update main panel
+        if (data.room === selectedChannel.id) {
+          voiceMembers = data.users.map(uid => ({
+            user_id: uid,
+            muted: false,
+            users: channelUserCache[uid] || { username: 'Unknown', avatar_url: '' }
+          }));
+          renderVoiceMembers();
+        }
       }
     };
-
-    // Handle connection errors
     voiceWebSocket.onerror = (event) => {
       console.error('[Voice WebSocket] Error:', event);
-      // Optionally show a UI warning
     };
-
-    // Cleanup on close
     voiceWebSocket.onclose = (event) => {
-      console.log('[Voice WebSocket] Connection closed:', event.code, event.reason || '');
       voiceWebSocket = null;
-      // Optionally update UI to show disconnected state
     };
   }
 
