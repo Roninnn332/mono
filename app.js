@@ -2149,6 +2149,57 @@ document.addEventListener('DOMContentLoaded', function() {
       .update({ status: 'blocked' })
       .or(`and(user_id.eq.${currentUser.id},friend_id.eq.${friendId}),and(user_id.eq.${friendId},friend_id.eq.${currentUser.id})`);
   }
+
+  // --- DM CHAT LOGIC ---
+  function renderFriendsList() {
+    friendsListPanel.innerHTML = '<div class="friends-list-title">Friends</div>';
+    supabase
+      .from('friends')
+      .select('id, user_id, friend_id, status, user:user_id(username, avatar_url, friend_code, banner_url), friend:friend_id(username, avatar_url, friend_code, banner_url)')
+      .or(`user_id.eq.${currentUser.id},friend_id.eq.${currentUser.id}`)
+      .eq('status', 'accepted')
+      .then(({ data, error }) => {
+        if (error || !data || data.length === 0) {
+          friendsListPanel.innerHTML += '<div class="friends-list-empty">No friends yet.</div>';
+          return;
+        }
+        const friends = data.map(row => {
+          const isSelfUser = row.user_id === currentUser.id;
+          const friendUser = isSelfUser ? row.friend : row.user;
+          const friendId = isSelfUser ? row.friend_id : row.user_id;
+          return {
+            id: friendId,
+            username: friendUser?.username || 'Unknown',
+            avatar_url: friendUser?.avatar_url || '',
+            friend_code: friendUser?.friend_code || '',
+            banner_url: friendUser?.banner_url || '',
+            status: 'Online',
+          };
+        });
+        friends.forEach(friend => {
+          const card = document.createElement('div');
+          card.className = 'friend-card';
+          card.innerHTML = `
+            <img class="friend-avatar friend-avatar-clickable" src="${friend.avatar_url}" alt="Avatar" style="cursor:pointer;">
+            <span class="friend-username friend-username-clickable" style="cursor:pointer;">${friend.username}</span>
+            <button class="friend-menu-btn" title="More options"><i class="fa fa-ellipsis-v"></i></button>
+          `;
+          // Avatar click: show popover
+          card.querySelector('.friend-avatar-clickable').addEventListener('click', (e) => {
+            e.stopPropagation();
+            showFriendPopover(friend, e.target);
+          });
+          // Name click: open DM chat
+          card.querySelector('.friend-username-clickable').addEventListener('click', () => openDMChat(friend));
+          // 3-dots menu logic
+          card.querySelector('.friend-menu-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            showFriendMenu(friend, e.target, card);
+          });
+          friendsListPanel.appendChild(card);
+        });
+      });
+  }
 });
 
 // Add CSS for animation at the end of the file if not present
