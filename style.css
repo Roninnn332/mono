@@ -2447,3 +2447,63 @@ input:checked + .slider:before {
   font-weight: 600;
   letter-spacing: 0.04em;
 }
+
+.friend-menu-btn {
+  background: none;
+  border: none;
+  color: #b9bbbe;
+  font-size: 1.3rem;
+  cursor: pointer;
+  margin-left: auto;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background 0.18s, color 0.18s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.friend-menu-btn:hover, .friend-menu-btn:focus {
+  background: #36393f;
+  color: #43b581;
+}
+.friend-menu-popover {
+  position: absolute;
+  z-index: 4000;
+  min-width: 160px;
+  background: rgba(35,39,42,0.98);
+  border-radius: 14px;
+  box-shadow: 0 8px 32px 0 rgba(67,181,129,0.13), 0 2px 12px 0 rgba(24,25,28,0.13);
+  border: 1.5px solid rgba(67, 181, 129, 0.10);
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(10px) scale(0.98);
+  transition: opacity 0.16s, transform 0.16s;
+  pointer-events: auto;
+  padding: 0;
+}
+.friend-menu-popover.active {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+.friend-menu-option {
+  width: 100%;
+  background: none;
+  border: none;
+  color: #f3f3f3;
+  font-size: 1.08rem;
+  font-weight: 600;
+  padding: 13px 18px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.16s, color 0.16s;
+  border-bottom: 1px solid #36393f;
+  outline: none;
+  letter-spacing: 0.01em;
+}
+.friend-menu-option:last-child {
+  border-bottom: none;
+}
+.friend-menu-option:hover, .friend-menu-option:focus {
+  background: #23272a;
+  color: #43b581;
+}

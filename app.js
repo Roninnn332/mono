@@ -1640,7 +1640,7 @@ document.addEventListener('DOMContentLoaded', function() {
           card.innerHTML = `
             <img class="friend-avatar friend-avatar-clickable" src="${friend.avatar_url}" alt="Avatar" style="cursor:pointer;">
             <span class="friend-username friend-username-clickable" style="cursor:pointer;">${friend.username}</span>
-            <span class="friend-status">${friend.status}</span>
+            <button class="friend-menu-btn" title="More options"><i class="fa fa-ellipsis-v"></i></button>
           `;
           // Avatar click: show popover
           card.querySelector('.friend-avatar-clickable').addEventListener('click', (e) => {
@@ -1649,6 +1649,11 @@ document.addEventListener('DOMContentLoaded', function() {
           });
           // Name click: open DM chat
           card.querySelector('.friend-username-clickable').addEventListener('click', () => openDMChat(friend));
+          // 3-dots menu logic
+          card.querySelector('.friend-menu-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            showFriendMenu(friend, e.target, card);
+          });
           friendsListPanel.appendChild(card);
         });
       });
@@ -2137,6 +2142,76 @@ document.addEventListener('DOMContentLoaded', function() {
       await leaveVoiceChannel(lastSelectedChannel, currentUser);
     }
   });
+
+  // 3-dots menu popover logic
+  let friendMenuPopover = null;
+  function showFriendMenu(friend, anchorEl, cardEl) {
+    closeFriendMenu();
+    friendMenuPopover = document.createElement('div');
+    friendMenuPopover.className = 'friend-menu-popover';
+    friendMenuPopover.innerHTML = `
+      <button class="friend-menu-option friend-menu-unfriend">Unfriend</button>
+      <button class="friend-menu-option friend-menu-since">Friends Since</button>
+      <button class="friend-menu-option friend-menu-block">Block</button>
+    `;
+    document.body.appendChild(friendMenuPopover);
+    // Position menu near 3-dots
+    const rect = anchorEl.getBoundingClientRect();
+    const popoverRect = friendMenuPopover.getBoundingClientRect();
+    let top = rect.bottom + window.scrollY + 4;
+    let left = rect.left + window.scrollX - popoverRect.width + rect.width;
+    left = Math.max(12, Math.min(left, window.innerWidth - popoverRect.width - 12));
+    friendMenuPopover.style.top = `${top}px`;
+    friendMenuPopover.style.left = `${left}px`;
+    setTimeout(() => friendMenuPopover.classList.add('active'), 10);
+    setTimeout(() => {
+      document.addEventListener('mousedown', handleFriendMenuOutsideClick);
+    }, 0);
+    // Option handlers
+    friendMenuPopover.querySelector('.friend-menu-unfriend').onclick = async () => {
+      await unfriendUser(friend.id);
+      closeFriendMenu();
+      renderFriendsList();
+    };
+    friendMenuPopover.querySelector('.friend-menu-since').onclick = () => {
+      alert('Friends since: (fetch and display date here)');
+      closeFriendMenu();
+    };
+    friendMenuPopover.querySelector('.friend-menu-block').onclick = async () => {
+      await blockUser(friend.id);
+      closeFriendMenu();
+      renderFriendsList();
+    };
+  }
+  function closeFriendMenu() {
+    if (friendMenuPopover) {
+      friendMenuPopover.classList.remove('active');
+      setTimeout(() => {
+        if (friendMenuPopover && friendMenuPopover.parentNode) friendMenuPopover.parentNode.removeChild(friendMenuPopover);
+        friendMenuPopover = null;
+      }, 120);
+      document.removeEventListener('mousedown', handleFriendMenuOutsideClick);
+    }
+  }
+  function handleFriendMenuOutsideClick(e) {
+    if (friendMenuPopover && !friendMenuPopover.contains(e.target)) {
+      closeFriendMenu();
+    }
+  }
+  // Unfriend function
+  async function unfriendUser(friendId) {
+    const currentUser = getUserSession();
+    await supabase.from('friends')
+      .delete()
+      .or(`and(user_id.eq.${currentUser.id},friend_id.eq.${friendId}),and(user_id.eq.${friendId},friend_id.eq.${currentUser.id})`);
+  }
+  // Block function
+  async function blockUser(friendId) {
+    const currentUser = getUserSession();
+    await supabase.from('friends')
+      .update({ status: 'blocked' })
+      .or(`and(user_id.eq.${currentUser.id},friend_id.eq.${friendId}),and(user_id.eq.${friendId},friend_id.eq.${currentUser.id})`);
+  }
 });
 
 // Add CSS for animation at the end of the file if not present
