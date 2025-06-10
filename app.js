@@ -710,8 +710,6 @@ document.addEventListener('DOMContentLoaded', function() {
     if (typeof sidebarTabs !== 'undefined') sidebarTabs.style.display = 'none';
     selectedServerId = serverId;
     // Hide join-server UI
-    const sidebarTabs = document.getElementById('sidebar-tabs');
-    const addFriendPanel = document.getElementById('add-friend-panel');
     if (sidebarTabs) sidebarTabs.style.display = 'none';
     if (addFriendPanel) addFriendPanel.style.display = 'none';
     // Show channels list
