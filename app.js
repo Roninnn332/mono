@@ -1272,6 +1272,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Hide all panels by default
     addFriendPanel.style.display = 'none';
     requestsPanel.style.display = 'none';
+    // Remove server owner header if present
+    const serverHeader = document.querySelector('.server-name-header');
+    if (serverHeader && serverHeader.parentNode) serverHeader.parentNode.removeChild(serverHeader);
     // Show the correct panel
     if (tab === 'add-friend') {
       mainPanel.appendChild(addFriendPanel);
