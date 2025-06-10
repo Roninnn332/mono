@@ -441,6 +441,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const cropperSave = document.getElementById('cropper-save');
   const profileFriendCode = document.getElementById('profile-friendcode');
   const copyFriendCodeBtn = document.getElementById('copy-friendcode-btn');
+  const profileLogoutBtn = document.getElementById('profile-logout-btn');
 
   let cropperType = null; // 'avatar' or 'banner'
   let cropperInstance = null;
@@ -1944,17 +1945,47 @@ document.addEventListener('DOMContentLoaded', function() {
       // Remove any existing welcome message first
       const oldWelcome = document.getElementById('main-welcome-message');
       if (oldWelcome) oldWelcome.remove();
-      // Add the welcome message
-      const welcomeDiv = document.createElement('div');
-      welcomeDiv.id = 'main-welcome-message';
-      welcomeDiv.className = 'main-welcome-center';
-      welcomeDiv.innerHTML = `
-        <div class=\"welcome-animated-icon\" style=\"font-size:4.2rem; color:#43b581;\">💻</div>
-        <div class=\"main-welcome-title\">This site is still under development</div>
-        <div class=\"main-welcome-desc\">Feel free to use all features, test, and give feedback!<br>More updates are coming soon.</div>
-        <div class=\"main-welcome-cta\">Happy Coding! <span style=\"font-size:1.5rem;\">🚀</span></div>
+      const oldHeader = document.getElementById('main-hero-header');
+      if (oldHeader) oldHeader.remove();
+
+      // Add the header as a separate element
+      const headerDiv = document.createElement('header');
+      headerDiv.id = 'main-hero-header';
+      headerDiv.className = 'main-hero-header';
+      headerDiv.innerHTML = `
+        <div class="main-hero-logo-group">
+          <span class="main-hero-logo">M</span>
+          <span class="main-hero-brand">MONO</span>
+        </div>
+        <nav class="main-hero-nav">
+          <a href="#" class="main-hero-link">Features</a>
+          <a href="#" class="main-hero-link">Pricing</a>
+          <a href="#" class="main-hero-link">Community</a>
+          <a href="#" class="main-hero-link">Support</a>
+        </nav>
+        <div class="main-hero-header-actions">
+          <button class="main-hero-header-btn main-hero-header-btn-outline">Login</button>
+          <button class="main-hero-header-btn main-hero-header-btn-gradient">Sign Up</button>
+        </div>
       `;
-      mainPanel.appendChild(welcomeDiv);
+      mainPanel.appendChild(headerDiv);
+
+      // Add the hero section as a separate element
+      const heroDiv = document.createElement('div');
+      heroDiv.id = 'main-welcome-message';
+      heroDiv.className = 'main-hero-section';
+      heroDiv.innerHTML = `
+        <div class="hero-bubble hero-bubble1"></div>
+        <div class="hero-bubble hero-bubble2"></div>
+        <div class="hero-bubble hero-bubble3"></div>
+        <div class="main-hero-heading">Where Communities<br>Thrive</div>
+        <div class="main-hero-subheading">MONO brings people together with seamless voice, video, and text communication. Build your community, your way.</div>
+        <div class="main-hero-actions">
+          <button class="main-hero-btn main-hero-btn-gradient">GET STARTED</button>
+          <button class="main-hero-btn main-hero-btn-outline">Open in Browser</button>
+        </div>
+      `;
+      mainPanel.appendChild(heroDiv);
     }
   }
   showDefaultWelcome();
@@ -2199,6 +2230,13 @@ document.addEventListener('DOMContentLoaded', function() {
           friendsListPanel.appendChild(card);
         });
       });
+  }
+
+  if (profileLogoutBtn) {
+    profileLogoutBtn.addEventListener('click', () => {
+      clearUserSession();
+      window.location.reload();
+    });
   }
 });
 
