@@ -1979,8 +1979,9 @@ document.addEventListener('DOMContentLoaded', function() {
   function updateVoiceChannelUserLists() {
     document.querySelectorAll('.voice-channel-users-list').forEach(el => el.remove());
     Object.entries(voiceChannelUsers).forEach(([channelId, users]) => {
+      // Only add user list under voice channel buttons
       const channelBtn = document.querySelector(`.channel-btn[data-voice-channel-id="${channelId}"]`);
-      if (channelBtn) {
+      if (channelBtn && channelBtn.querySelector('.fa-volume-up')) {
         let html = '';
         if (users.length > 0) {
           html = `<div class="voice-channel-users-list">` +
@@ -2049,6 +2050,11 @@ document.addEventListener('DOMContentLoaded', function() {
       voiceWebSocket.close();
       voiceWebSocket = null;
     }
+    // Remove user from the mini user list for this channel
+    if (voiceChannelUsers[selectedChannel.id]) {
+      voiceChannelUsers[selectedChannel.id] = voiceChannelUsers[selectedChannel.id].filter(u => u.id !== currentUser.id);
+      updateVoiceChannelUserLists();
+    }
     // Optionally clear UI
     voiceMembers = [];
     renderVoiceMembers();
@@ -2066,13 +2072,9 @@ document.addEventListener('DOMContentLoaded', function() {
       const colorClass = `color-${(idx % 8) + 1}`;
       return `
           <div class="voice-user-tile ${colorClass}">
-          <img class="voice-user-avatar" src="${avatar}" alt="Avatar">
-            <div class="voice-user-label">
-            <i class="fa fa-microphone" style="margin-right:6px;"></i>
-            ${u.username || 'Unknown'}
-            </div>
-      </div>
-    `;
+            <img class="voice-user-avatar" src="${avatar}" alt="Avatar">
+          </div>
+      `;
     }).join('');
   }
   // --- End Voice Channel WebSocket Logic ---
