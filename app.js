@@ -1144,11 +1144,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (messagesDiv) {
       messagesDiv.innerHTML = messages.map(msg => {
         const user = channelUserCache[msg.user_id] || { username: 'Unknown', avatar_url: '' };
-        return `<div class=\"main-chat-message\">\n        <img class=\"friend-avatar\" src=\"${user.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.username)}`}\" alt=\"Avatar\">\n        <div class=\"main-chat-message-content\">\n          <div class=\"main-chat-message-header\">\n            <span class=\"main-chat-message-username\">${user.username}</span>\n            <span class=\"main-chat-message-time\">${new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-          </div>
-          <div class=\"main-chat-message-text\">${msg.content}</div>
-        </div>
-      </div>`;
+        return `<div class=\"main-chat-message\">\n        <img class=\"friend-avatar\" src=\"${user.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.username)}`}\" alt=\"Avatar\">\n        <div class=\"main-chat-message-content\">\n          <div class=\"main-chat-message-header\">\n            <span class=\"main-chat-message-username\">${user.username}</span>\n            <span class=\"main-chat-message-time\">${new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>\n          </div>\n          <div class=\"main-chat-message-text\">${msg.content}</div>\n        </div>\n      </div>`;
       }).join('');
       // Scroll to bottom
       setTimeout(() => {
@@ -1616,17 +1612,21 @@ document.addEventListener('DOMContentLoaded', function() {
     hideDefaultWelcome();
     currentOpenDMFriendId = friend.id;
     setLastDMFriendId(friend.id);
-    // Clear rendered message IDs for this friend so all messages are re-rendered
     renderedDMMessageIds[friend.id] = new Set();
-    // Clear main panel
     while (mainPanel.firstChild) mainPanel.removeChild(mainPanel.firstChild);
-    // Header
+    // Header with search box
     const header = document.createElement('div');
     header.className = 'main-chat-header';
     header.innerHTML = `
       <img src="${friend.avatar_url}" class="friend-avatar" style="width:36px;height:36px;margin-right:10px;">
       <span class="main-chat-header-name">${friend.username}</span>
       <span style="color:#4a90e2;font-size:1.05rem;margin-left:8px;">#${friend.friend_code}</span>
+      <div class="dm-search-box-outer">
+        <input id="dm-search-box" class="dm-search-box" type="text" placeholder="Search messages...">
+        <span id="dm-search-count" class="dm-search-count" style="display:none;"></span>
+        <button id="dm-search-up" class="dm-search-arrow" style="display:none;"><i class="fa fa-chevron-up"></i></button>
+        <button id="dm-search-down" class="dm-search-arrow" style="display:none;"><i class="fa fa-chevron-down"></i></button>
+      </div>
     `;
     mainPanel.appendChild(header);
     // Messages area
@@ -1643,10 +1643,79 @@ document.addEventListener('DOMContentLoaded', function() {
       <button class="main-chat-send" id="dm-send-btn"><i class="fa fa-paper-plane"></i></button>
     `;
     mainPanel.appendChild(inputRow);
-    // Emoji picker
     setupDMEmojiButton();
-    // Load messages
-    await loadDMMessages(friend.id);
+    // --- DM SEARCH STATE ---
+    let dmSearchResults = [];
+    let dmSearchIndex = 0;
+    let dmMessagesCache = [];
+    // --- SEARCH LOGIC ---
+    function updateSearchUI() {
+      const count = document.getElementById('dm-search-count');
+      const up = document.getElementById('dm-search-up');
+      const down = document.getElementById('dm-search-down');
+      if (dmSearchResults.length > 0) {
+        count.style.display = '';
+        up.style.display = '';
+        down.style.display = '';
+        count.textContent = `${dmSearchIndex + 1} / ${dmSearchResults.length}`;
+      } else {
+        count.style.display = 'none';
+        up.style.display = 'none';
+        down.style.display = 'none';
+      }
+    }
+    function scrollToSearchResult(idx) {
+      if (dmSearchResults.length === 0) return;
+      const msgId = dmSearchResults[idx];
+      const msgDiv = document.querySelector(`[data-dm-msg-id='${msgId}']`);
+      if (msgDiv) {
+        msgDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Animation
+        msgDiv.classList.add('dm-search-highlight');
+        setTimeout(() => msgDiv.classList.remove('dm-search-highlight'), 900);
+      }
+    }
+    function runSearch() {
+      const val = document.getElementById('dm-search-box').value.trim().toLowerCase();
+      dmSearchResults = [];
+      dmSearchIndex = 0;
+      if (val && dmMessagesCache.length > 0) {
+        dmMessagesCache.forEach(msg => {
+          if (msg.content.toLowerCase().includes(val)) {
+            dmSearchResults.push(msg.id);
+          }
+        });
+      }
+      updateSearchUI();
+      if (dmSearchResults.length > 0) scrollToSearchResult(dmSearchIndex);
+    }
+    // --- SEARCH EVENTS ---
+    setTimeout(() => {
+      const searchBox = document.getElementById('dm-search-box');
+      const up = document.getElementById('dm-search-up');
+      const down = document.getElementById('dm-search-down');
+      searchBox.addEventListener('input', runSearch);
+      searchBox.addEventListener('keydown', e => {
+        if (e.key === 'Enter' && dmSearchResults.length > 0) {
+          scrollToSearchResult(dmSearchIndex);
+        }
+      });
+      up.addEventListener('click', () => {
+        if (dmSearchResults.length === 0) return;
+        dmSearchIndex = (dmSearchIndex - 1 + dmSearchResults.length) % dmSearchResults.length;
+        updateSearchUI();
+        scrollToSearchResult(dmSearchIndex);
+      });
+      down.addEventListener('click', () => {
+        if (dmSearchResults.length === 0) return;
+        dmSearchIndex = (dmSearchIndex + 1) % dmSearchResults.length;
+        updateSearchUI();
+        scrollToSearchResult(dmSearchIndex);
+      });
+    }, 120);
+    // ... existing code ...
+    await loadDMMessages(friend.id, true);
+    // ... existing code ...
     // Mark all messages from this friend as read
     await supabase.from('direct_messages')
       .update({ read: true })
@@ -1696,9 +1765,10 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   // Load DM messages (final fix for .or() filter)
-  async function loadDMMessages(friendId) {
+  async function loadDMMessages(friendId, isFromOpenDM = false) {
     const messagesArea = document.getElementById('dm-messages');
     if (!messagesArea) return;
+    if (!window.dmMessagesCache) window.dmMessagesCache = [];
     // Initialize rendered IDs for this friend if not present
     if (!renderedDMMessageIds[friendId]) renderedDMMessageIds[friendId] = new Set();
     // Correct .or() filter syntax: no outer parentheses
@@ -1734,77 +1804,18 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     // Only append new messages
     let appended = false;
+    messagesArea.innerHTML = '';
+    window.dmMessagesCache = data;
     for (const msg of data) {
-      if (!renderedDMMessageIds[friendId].has(msg.id)) {
-        const user = dmUserCache[msg.sender_id] || { username: 'Unknown', avatar_url: '' };
+      const user = dmUserCache[msg.sender_id] || { username: 'Unknown', avatar_url: '' };
       const msgDiv = document.createElement('div');
-        msgDiv.className = 'dm-message' + (msg.sender_id === currentUser.id ? ' sent' : ' received');
+      msgDiv.className = 'dm-message' + (msg.sender_id === currentUser.id ? ' sent' : ' received');
+      msgDiv.setAttribute('data-dm-msg-id', msg.id);
       msgDiv.innerHTML = `
-          <img class=\"friend-avatar\" src=\"${user.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.username)}`}\" alt=\"Avatar\">
-          <div class=\"dm-message-content\">
-            <div class=\"dm-message-header\">
-              <span class=\"dm-message-username\">${user.username}</span>
-              <span class=\"dm-message-time\">${new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-            </div>
-            <div class=\"dm-message-text\">${msg.content}</div>
-          </div>
-        `;
-        // Add double-click handler for context menu
-        msgDiv.ondblclick = function(e) {
-          e.preventDefault();
-          closeDMContextMenu();
-          const menu = document.createElement('div');
-          menu.id = 'dm-context-menu';
-          menu.style.position = 'fixed';
-          menu.style.left = e.clientX + 'px';
-          menu.style.top = e.clientY + 'px';
-          menu.style.background = '#23272a';
-          menu.style.color = '#fff';
-          menu.style.borderRadius = '8px';
-          menu.style.boxShadow = '0 2px 12px rgba(0,0,0,0.18)';
-          menu.style.padding = '6px 0';
-          menu.style.zIndex = 9999;
-          menu.style.minWidth = '90px';
-          menu.style.fontSize = '1rem';
-          menu.style.userSelect = 'none';
-          // Reply option
-          const reply = document.createElement('div');
-          reply.textContent = 'Reply';
-          reply.style.padding = '7px 18px';
-          reply.style.cursor = 'pointer';
-          reply.onmouseenter = () => reply.style.background = '#4a90e2';
-          reply.onmouseleave = () => reply.style.background = 'none';
-          reply.onclick = () => {
-            closeDMContextMenu();
-            const input = document.getElementById('dm-chat-input');
-            if (input) {
-              input.value = `@${user.username}: ${msg.content}\n`;
-              input.focus();
-            }
-          };
-          // Copy option
-          const copy = document.createElement('div');
-          copy.textContent = 'Copy';
-          copy.style.padding = '7px 18px';
-          copy.style.cursor = 'pointer';
-          copy.onmouseenter = () => copy.style.background = '#4a90e2';
-          copy.onmouseleave = () => copy.style.background = 'none';
-          copy.onclick = () => {
-            closeDMContextMenu();
-            document.execCommand('copy'); // Use this for clipboard access in iframes
-          };
-          menu.appendChild(reply);
-          menu.appendChild(copy);
-          document.body.appendChild(menu);
-          // Close menu on click elsewhere
-          setTimeout(() => {
-            document.addEventListener('mousedown', closeDMContextMenu, { once: true });
-          }, 0);
-        };
+        <img class=\"friend-avatar\" src=\"${user.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.username)}`}\" alt=\"Avatar\">\n        <div class=\"dm-message-content\">\n          <div class=\"dm-message-header\">\n            <span class=\"dm-message-username\">${user.username}</span>\n            <span class=\"dm-message-time\">${new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>\n          </div>\n          <div class=\"dm-message-text\">${msg.content}</div>\n        </div>\n      `;
       messagesArea.appendChild(msgDiv);
-        renderedDMMessageIds[friendId].add(msg.id);
-        appended = true;
-      }
+      renderedDMMessageIds[friendId].add(msg.id);
+      appended = true;
     }
     // Scroll to bottom if new messages were appended
     if (appended) {
@@ -1813,6 +1824,25 @@ document.addEventListener('DOMContentLoaded', function() {
       });
     }
     updateDMUnreadBadge();
+    // If search is active, highlight and scroll
+    if (isFromOpenDM) {
+      setTimeout(() => {
+        if (window.dmMessagesCache) {
+          const searchBox = document.getElementById('dm-search-box');
+          if (searchBox && searchBox.value.trim()) {
+            const val = searchBox.value.trim().toLowerCase();
+            let results = [];
+            window.dmMessagesCache.forEach(msg => {
+              if (msg.content.toLowerCase().includes(val)) results.push(msg.id);
+            });
+            if (results.length > 0) {
+              const msgDiv = document.querySelector(`[data-dm-msg-id='${results[0]}']`);
+              if (msgDiv) msgDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }
+        }
+      }, 200);
+    }
   }
 
   // Send DM message
