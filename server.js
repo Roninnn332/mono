@@ -51,6 +51,7 @@ wss.on('connection', (ws) => {
         if (ws.channelId && channels.has(ws.channelId)) {
             channels.get(ws.channelId).delete(ws);
             sendUserList(ws.channelId);
+            ws.channelId = null;
         }
     });
 
