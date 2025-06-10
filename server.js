@@ -61,7 +61,9 @@ wss.on('connection', (ws) => {
     function sendUserList(channelId) {
         const channelClients = channels.get(channelId) || new Set();
         const userList = Array.from(channelClients).map(client => client.userId).filter(Boolean);
-        channelClients.forEach(client => {
+
+        // Broadcast to ALL connected clients, not just those in the channel
+        wss.clients.forEach(client => {
             if (client.readyState === WebSocket.OPEN) {
                 client.send(JSON.stringify({
                     type: 'user_list_update',
