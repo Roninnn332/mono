@@ -993,26 +993,23 @@ document.addEventListener('DOMContentLoaded', function() {
           .in('id', uncached);
         if (usersData) usersData.forEach(u => { channelUserCache[u.id] = u; });
       }
-        // Show normal chat area
+        // Show normal chat area with search bar
         mainPanel.innerHTML = `
           <div class="main-chat-header">
             <span class="main-chat-header-hash">#</span>
             <span class="main-chat-header-name">${selectedChannel.name}</span>
           </div>
+          <div class="chat-search-bar" id="chat-search-bar">
+            <input id="chat-search-input" class="chat-search-input" type="text" placeholder="Search messages..." autocomplete="off" />
+            <button id="chat-search-prev" class="chat-search-nav"><i class="fa fa-chevron-up"></i></button>
+            <button id="chat-search-next" class="chat-search-nav"><i class="fa fa-chevron-down"></i></button>
+            <span id="chat-search-count" class="chat-search-count"></span>
+          </div>
           <div class="main-chat-flex-col">
             <div class="main-chat-messages" id="main-chat-messages">
             ${messages.map(msg => {
               const user = channelUserCache[msg.user_id] || { username: 'Unknown', avatar_url: '' };
-              return `<div class=\"main-chat-message\">
-                <img class=\"friend-avatar\" src=\"${user.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.username)}`}\" alt=\"Avatar\">
-                <div class=\"main-chat-message-content\">
-                  <div class=\"main-chat-message-header\">
-                    <span class=\"main-chat-message-username\">${user.username}</span>
-                    <span class=\"main-chat-message-time\">${new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                  </div>
-                  <div class=\"main-chat-message-text\">${msg.content}</div>
-                </div>
-              </div>`;
+              return `<div class=\"main-chat-message\" data-message-id=\"${msg.id}\">\n                <img class=\"friend-avatar\" src=\"${user.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.username)}`}\" alt=\"Avatar\">\n                <div class=\"main-chat-message-content\">\n                  <div class=\"main-chat-message-header\">\n                    <span class=\"main-chat-message-username\">${user.username}</span>\n                    <span class=\"main-chat-message-time\">${new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>\n                  </div>\n                  <div class=\"main-chat-message-text\">${msg.content}</div>\n                </div>\n              </div>`;
             }).join('')}
             </div>
             <div class="main-chat-input-row">
@@ -1037,33 +1034,93 @@ document.addEventListener('DOMContentLoaded', function() {
           if (e.key === 'Enter') sendChannelMessage();
         });
       }
+      // WhatsApp-like search logic
+      const searchInput = document.getElementById('chat-search-input');
+      const searchPrev = document.getElementById('chat-search-prev');
+      const searchNext = document.getElementById('chat-search-next');
+      const searchCount = document.getElementById('chat-search-count');
+      const messagesDiv = document.getElementById('main-chat-messages');
+      let searchMatches = [];
+      let currentMatch = 0;
+      function clearHighlights() {
+        messagesDiv.querySelectorAll('.chat-search-highlight').forEach(el => {
+          const parent = el.parentNode;
+          parent.replaceChild(document.createTextNode(el.textContent), el);
+          parent.normalize();
+        });
+      }
+      function highlightMatches(query) {
+        clearHighlights();
+        if (!query) return [];
+        const matches = [];
+        messagesDiv.querySelectorAll('.main-chat-message-text').forEach((msgDiv, idx) => {
+          const text = msgDiv.textContent;
+          const regex = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+          let match;
+          let lastIndex = 0;
+          let html = '';
+          let found = false;
+          while ((match = regex.exec(text)) !== null) {
+            found = true;
+            html += text.slice(lastIndex, match.index);
+            html += `<span class='chat-search-highlight'>${match[0]}</span>`;
+            lastIndex = match.index + match[0].length;
+            matches.push({msgDiv, idx, matchIndex: match.index});
+          }
+          html += text.slice(lastIndex);
+          if (found) msgDiv.innerHTML = html;
+        });
+        return matches;
+      }
+      function updateSearchNav() {
+        if (!searchMatches.length) {
+          searchCount.textContent = '';
+          return;
+        }
+        searchMatches.forEach((m, i) => {
+          const el = m.msgDiv.querySelectorAll('.chat-search-highlight')[0];
+          if (el) el.classList.toggle('current', i === currentMatch);
+        });
+        searchCount.textContent = `${searchMatches.length ? (currentMatch+1) : 0}/${searchMatches.length}`;
+        // Scroll to current match
+        if (searchMatches.length) {
+          const el = searchMatches[currentMatch].msgDiv.closest('.main-chat-message');
+          if (el) el.scrollIntoView({behavior:'smooth', block:'center'});
+        }
+      }
+      function doSearch() {
+        const query = searchInput.value.trim();
+        searchMatches = highlightMatches(query);
+        currentMatch = 0;
+        updateSearchNav();
+      }
+      searchInput.addEventListener('input', doSearch);
+      searchPrev.addEventListener('click', () => {
+        if (!searchMatches.length) return;
+        currentMatch = (currentMatch - 1 + searchMatches.length) % searchMatches.length;
+        updateSearchNav();
+      });
+      searchNext.addEventListener('click', () => {
+        if (!searchMatches.length) return;
+        currentMatch = (currentMatch + 1) % searchMatches.length;
+        updateSearchNav();
+      });
+      searchInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+          if (searchMatches.length) {
+            currentMatch = (currentMatch + 1) % searchMatches.length;
+            updateSearchNav();
+          }
+        }
+      });
+      // Clear highlights when search is cleared
+      searchInput.addEventListener('blur', () => {
+        if (!searchInput.value.trim()) clearHighlights();
+      });
       // Scroll to bottom
       setTimeout(() => {
-        const messagesDiv = document.getElementById('main-chat-messages');
         if (messagesDiv) messagesDiv.scrollTop = messagesDiv.scrollHeight;
       }, 120);
-      // Setup live updates for this channel ONLY if channel changed
-      if (currentRealtimeChannelId !== selectedChannel.id) {
-        if (channelRealtimeSubscription) {
-          supabase.removeChannel(channelRealtimeSubscription);
-          channelRealtimeSubscription = null;
-        }
-        channelRealtimeSubscription = supabase.channel('realtime:messages_' + selectedChannel.id)
-          .on('postgres_changes', {
-            event: '*',
-            schema: 'public',
-            table: 'messages',
-            filter: `channel_id=eq.${selectedChannel.id}`
-          }, payload => {
-            console.log('Realtime event for channel:', selectedChannel.id, payload);
-            if (selectedChannelId === selectedChannel.id) {
-              // Only reload messages, do not re-subscribe
-              reloadChannelMessages(selectedChannel.id);
-            }
-          })
-          .subscribe();
-        currentRealtimeChannelId = selectedChannel.id;
-      }
     } else if (selectedChannel && selectedChannel.type === 'voice') {
       // If a text channel was previously selected, clear its subscription
       if (channelRealtimeSubscription) {
@@ -1145,11 +1202,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (messagesDiv) {
       messagesDiv.innerHTML = messages.map(msg => {
         const user = channelUserCache[msg.user_id] || { username: 'Unknown', avatar_url: '' };
-        return `<div class=\"main-chat-message\">\n        <img class=\"friend-avatar\" src=\"${user.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.username)}`}\" alt=\"Avatar\">\n        <div class=\"main-chat-message-content\">\n          <div class=\"main-chat-message-header\">\n            <span class=\"main-chat-message-username\">${user.username}</span>\n            <span class=\"main-chat-message-time\">${new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-          </div>
-          <div class=\"main-chat-message-text\">${msg.content}</div>
-        </div>
-      </div>`;
+        return `<div class=\"main-chat-message\">\n        <img class=\"friend-avatar\" src=\"${user.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.username)}`}\" alt=\"Avatar\">\n        <div class=\"main-chat-message-content\">\n          <div class=\"main-chat-message-header\">\n            <span class=\"main-chat-message-username\">${user.username}</span>\n            <span class=\"main-chat-message-time\">${new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>\n          </div>\n          <div class=\"main-chat-message-text\">${msg.content}</div>\n        </div>\n      </div>`;
       }).join('');
       // Scroll to bottom
       setTimeout(() => {
