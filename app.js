@@ -1986,6 +1986,11 @@ document.addEventListener('DOMContentLoaded', function() {
         </div>
       `;
       mainPanel.appendChild(heroDiv);
+      // Animate header and hero section elements on load
+      setTimeout(() => {
+        mainPanel.classList.add('hero-animate-header');
+        heroDiv.classList.add('hero-animate');
+      }, 80);
     }
   }
   showDefaultWelcome();

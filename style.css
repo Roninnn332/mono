@@ -2581,7 +2581,7 @@ input:checked + .slider:before {
 }
 
 .main-hero-heading {
-  font-size: 2.2rem;
+  font-size: 2.7rem;
   font-weight: 900;
   color: #eaf6ff;
   letter-spacing: 0.01em;
@@ -2593,7 +2593,7 @@ input:checked + .slider:before {
 }
 @media (max-width: 600px) {
   .main-hero-heading {
-    font-size: 1.3rem;
+    font-size: 1.7rem;
   }
 }
 .main-hero-subheading {
@@ -2824,4 +2824,61 @@ input:checked + .slider:before {
 .profile-logout-btn:hover {
   background: linear-gradient(90deg, #43e9ff 0%, #4a90e2 100%);
   box-shadow: 0 4px 16px 0 rgba(67,233,255,0.18);
+}
+
+.main-hero-heading, .main-hero-subheading, .main-hero-actions {
+  opacity: 0;
+  transform: translateY(30px) scale(0.98);
+  transition: none;
+}
+.hero-animate .main-hero-heading {
+  animation: hero-fade-in 0.7s 0.1s cubic-bezier(.23,1.12,.62,1.01) forwards;
+}
+.hero-animate .main-hero-subheading {
+  animation: hero-slide-up 0.7s 0.35s cubic-bezier(.23,1.12,.62,1.01) forwards;
+}
+.hero-animate .main-hero-actions {
+  animation: hero-scale-in 0.7s 0.6s cubic-bezier(.23,1.12,.62,1.01) forwards;
+}
+@keyframes hero-fade-in {
+  from { opacity: 0; transform: translateY(30px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes hero-slide-up {
+  from { opacity: 0; transform: translateY(30px) scale(0.98); }
+  to { opacity: 1; transform: translateY(-6px) scale(1); }
+}
+@keyframes hero-scale-in {
+  from { opacity: 0; transform: translateY(30px) scale(0.92); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.main-hero-header, .main-hero-logo-group, .main-hero-nav, .main-hero-header-actions {
+  opacity: 0;
+  transform: translateY(-24px) scale(0.98);
+  transition: none;
+}
+.hero-animate-header .main-hero-header {
+  animation: hero-header-fade-in 0.6s 0.05s cubic-bezier(.23,1.12,.62,1.01) forwards;
+}
+.hero-animate-header .main-hero-logo-group {
+  animation: hero-header-slide-in 0.7s 0.18s cubic-bezier(.23,1.12,.62,1.01) forwards;
+}
+.hero-animate-header .main-hero-nav {
+  animation: hero-header-slide-in 0.7s 0.32s cubic-bezier(.23,1.12,.62,1.01) forwards;
+}
+.hero-animate-header .main-hero-header-actions {
+  animation: hero-header-actions-in 0.7s 0.45s cubic-bezier(.23,1.12,.62,1.01) forwards;
+}
+@keyframes hero-header-fade-in {
+  from { opacity: 0; transform: translateY(-24px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes hero-header-slide-in {
+  from { opacity: 0; transform: translateY(-24px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes hero-header-actions-in {
+  from { opacity: 0; transform: translateY(-24px) scale(0.92); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
