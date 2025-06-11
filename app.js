@@ -2077,9 +2077,6 @@ document.addEventListener('DOMContentLoaded', function() {
         updateDMUnreadBadge();
       })
       .subscribe();
-    dmPollingInterval = setInterval(() => {
-      loadDMMessages(friend.id);
-    }, 4000);
   }
 
   // Load DM messages (final fix for .or() filter)
@@ -2088,12 +2085,8 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!messagesArea) return;
     const searchBar = document.getElementById('dm-chat-search-bar');
     const isSearchActive = searchBar && searchBar.classList.contains('active');
-    if (isSearchActive) {
-      messagesArea.innerHTML = '';
-      renderedDMMessageIds[friendId] = new Set();
-    } else {
-      if (!renderedDMMessageIds[friendId]) renderedDMMessageIds[friendId] = new Set();
-    }
+    // --- FIX: Do NOT clear messagesArea or renderedDMMessageIds when search is active ---
+    if (!renderedDMMessageIds[friendId]) renderedDMMessageIds[friendId] = new Set();
     // Correct .or() filter syntax: no outer parentheses
     const filter = `and(sender_id.eq.${currentUser.id},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${currentUser.id})`;
     console.log('DM filter:', filter);
