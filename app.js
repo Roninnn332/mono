@@ -993,17 +993,21 @@ document.addEventListener('DOMContentLoaded', function() {
           .in('id', uncached);
         if (usersData) usersData.forEach(u => { channelUserCache[u.id] = u; });
       }
-        // Show normal chat area with search bar
+        // Show normal chat area with search icon in header
         mainPanel.innerHTML = `
-          <div class="main-chat-header">
+          <div class="main-chat-header" id="main-chat-header">
             <span class="main-chat-header-hash">#</span>
             <span class="main-chat-header-name">${selectedChannel.name}</span>
-          </div>
-          <div class="chat-search-bar" id="chat-search-bar">
-            <input id="chat-search-input" class="chat-search-input" type="text" placeholder="Search messages..." autocomplete="off" />
-            <button id="chat-search-prev" class="chat-search-nav"><i class="fa fa-chevron-up"></i></button>
-            <button id="chat-search-next" class="chat-search-nav"><i class="fa fa-chevron-down"></i></button>
-            <span id="chat-search-count" class="chat-search-count"></span>
+            <div class="chat-header-search-area" id="chat-header-search-area">
+              <button id="chat-search-toggle" class="chat-search-toggle" title="Search Messages"><i class="fa fa-search"></i></button>
+              <div class="chat-search-bar" id="chat-search-bar" style="display:none;">
+                <input id="chat-search-input" class="chat-search-input" type="text" placeholder="Search messages..." autocomplete="off" />
+                <button id="chat-search-prev" class="chat-search-nav"><i class="fa fa-chevron-up"></i></button>
+                <button id="chat-search-next" class="chat-search-nav"><i class="fa fa-chevron-down"></i></button>
+                <span id="chat-search-count" class="chat-search-count"></span>
+                <button id="chat-search-close" class="chat-search-close" title="Close Search"><i class="fa fa-times"></i></button>
+              </div>
+            </div>
           </div>
           <div class="main-chat-flex-col">
             <div class="main-chat-messages" id="main-chat-messages">
@@ -1020,25 +1024,14 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
           </div>
         `;
-      // Focus input automatically
-      setTimeout(() => {
-        const chatInput = document.getElementById('chat-input');
-        if (chatInput) chatInput.focus();
-      }, 100);
-      // After rendering the chat input row:
-      const sendBtn = document.querySelector('.main-chat-send');
-      const chatInput = document.getElementById('chat-input');
-      if (sendBtn && chatInput) {
-        sendBtn.onclick = sendChannelMessage;
-        chatInput.addEventListener('keydown', e => {
-          if (e.key === 'Enter') sendChannelMessage();
-        });
-      }
-      // WhatsApp-like search logic
+      // Search bar expand/collapse logic
+      const searchToggle = document.getElementById('chat-search-toggle');
+      const searchBar = document.getElementById('chat-search-bar');
       const searchInput = document.getElementById('chat-search-input');
       const searchPrev = document.getElementById('chat-search-prev');
       const searchNext = document.getElementById('chat-search-next');
       const searchCount = document.getElementById('chat-search-count');
+      const searchClose = document.getElementById('chat-search-close');
       const messagesDiv = document.getElementById('main-chat-messages');
       let searchMatches = [];
       let currentMatch = 0;
@@ -1093,6 +1086,23 @@ document.addEventListener('DOMContentLoaded', function() {
         searchMatches = highlightMatches(query);
         currentMatch = 0;
         updateSearchNav();
+      }
+      if (searchToggle && searchBar && searchInput) {
+        searchToggle.onclick = () => {
+          searchBar.style.display = 'flex';
+          searchToggle.style.display = 'none';
+          setTimeout(() => searchInput.focus(), 80);
+        };
+        searchClose.onclick = () => {
+          searchBar.style.display = 'none';
+          searchToggle.style.display = '';
+          searchInput.value = '';
+          clearHighlights();
+          searchCount.textContent = '';
+        };
+        searchInput.addEventListener('keydown', e => {
+          if (e.key === 'Escape') searchClose.click();
+        });
       }
       searchInput.addEventListener('input', doSearch);
       searchPrev.addEventListener('click', () => {
