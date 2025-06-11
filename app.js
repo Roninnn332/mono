@@ -1747,8 +1747,8 @@ document.addEventListener('DOMContentLoaded', function() {
       clearInterval(dmPollingInterval);
       dmPollingInterval = null;
     }
-    // Subscribe to realtime updates for this DM
-    dmRealtimeSubscription = supabase.channel('realtime:direct_messages')
+    // Subscribe to realtime updates for this DM (unique channel per friend)
+    dmRealtimeSubscription = supabase.channel('realtime:direct_messages_' + friend.id)
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
@@ -1812,17 +1812,13 @@ document.addEventListener('DOMContentLoaded', function() {
     for (const msg of data) {
       if (!renderedDMMessageIds[friendId].has(msg.id)) {
         const user = dmUserCache[msg.sender_id] || { username: 'Unknown', avatar_url: '' };
-      const msgDiv = document.createElement('div');
+        const msgDiv = document.createElement('div');
         msgDiv.className = 'dm-message' + (msg.sender_id === currentUser.id ? ' sent' : ' received');
-      msgDiv.innerHTML = `
-          <img class=\"friend-avatar\" src=\"${user.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.username)}`}\" alt=\"Avatar\">
-          <div class=\"dm-message-content\">
-            <div class=\"dm-message-header\">
-              <span class=\"dm-message-username\">${user.username}</span>
-              <span class=\"dm-message-time\">${new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-            </div>
-            <div class=\"dm-message-text\">${msg.content}</div>
-          </div>
+        msgDiv.innerHTML = `
+          <img class=\"friend-avatar\" src=\"${user.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.username)}`}\" alt=\"Avatar\">\n
+          <div class=\"dm-message-content\">\n
+            <div class=\"dm-message-text\">${msg.content}</div>\n
+          </div>\n
         `;
         // Add double-click handler for context menu
         msgDiv.ondblclick = function(e) {
@@ -1876,7 +1872,7 @@ document.addEventListener('DOMContentLoaded', function() {
             document.addEventListener('mousedown', closeDMContextMenu, { once: true });
           }, 0);
         };
-      messagesArea.appendChild(msgDiv);
+        messagesArea.appendChild(msgDiv);
         renderedDMMessageIds[friendId].add(msg.id);
         appended = true;
       }
