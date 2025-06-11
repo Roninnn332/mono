@@ -2999,3 +2999,14 @@ input:checked + .slider:before {
   background: #232a4d22;
   color: #e74c3c;
 }
+
+/* Active server button glow effect */
+.server-btn.selected, .server-btn.active {
+  box-shadow: 0 0 0 3px #43b581cc, 0 2px 12px #43b58155, 0 0 16px 4px #43b58144;
+  background: linear-gradient(120deg, #43b581 60%, #2ecc71 100%);
+  color: #18191c;
+  border: 2.5px solid #43b581;
+  font-weight: 700;
+  z-index: 2;
+  transform: scale(1.08);
+}

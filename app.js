@@ -277,12 +277,21 @@ document.addEventListener('DOMContentLoaded', function() {
         } else {
           btn.textContent = server.name[0].toUpperCase();
         }
+        btn.dataset.serverId = server.id;
         btn.addEventListener('click', async () => {
           setSelectedServer(server.id);
           await updateCreateChannelBtn(server.id);
+          // Update selected state
+          document.querySelectorAll('.servers .server-btn').forEach(b => b.classList.remove('selected'));
+          btn.classList.add('selected');
         });
         document.querySelector('.servers').insertBefore(btn, document.querySelector('.server-separator'));
       });
+    }
+    // After loading, set selected class on the current server
+    if (window.selectedServerId) {
+      const activeBtn = document.querySelector(`.servers .server-btn[data-server-id="${window.selectedServerId}"]`);
+      if (activeBtn) activeBtn.classList.add('selected');
     }
     updateCreateChannelBtn(null);
     return data;
@@ -723,6 +732,15 @@ document.addEventListener('DOMContentLoaded', function() {
     const createChannelBtn = document.querySelector('.create-channel-btn');
     if (createChannelBtn) createChannelBtn.style.display = '';
     loadChannels(serverId, true);
+    // Update selected state for server buttons
+    document.querySelectorAll('.servers .server-btn').forEach(btn => {
+      if (btn.dataset.serverId === serverId) {
+        btn.classList.add('selected');
+      } else {
+        btn.classList.remove('selected');
+      }
+    });
+    window.selectedServerId = serverId;
   }
 
   // Load channels for a server
