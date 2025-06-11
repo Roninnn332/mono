@@ -1896,17 +1896,25 @@ document.addEventListener('DOMContentLoaded', function() {
     hideDefaultWelcome();
     currentOpenDMFriendId = friend.id;
     setLastDMFriendId(friend.id);
-    // Clear rendered message IDs for this friend so all messages are re-rendered
     renderedDMMessageIds[friend.id] = new Set();
-    // Clear main panel
     while (mainPanel.firstChild) mainPanel.removeChild(mainPanel.firstChild);
-    // Header
+    // Header with search
     const header = document.createElement('div');
     header.className = 'main-chat-header';
     header.innerHTML = `
       <img src="${friend.avatar_url}" class="friend-avatar" style="width:36px;height:36px;margin-right:10px;">
       <span class="main-chat-header-name">${friend.username}</span>
       <span style="color:#4a90e2;font-size:1.05rem;margin-left:8px;">#${friend.friend_code}</span>
+      <div class="chat-header-search-area" id="dm-chat-header-search-area">
+        <button id="dm-chat-search-toggle" class="chat-search-toggle" title="Search Messages"><i class="fa fa-search"></i></button>
+        <div class="chat-search-bar" id="dm-chat-search-bar">
+          <button id="dm-chat-search-close" class="chat-search-close" title="Close Search"><i class="fa fa-times"></i></button>
+          <input id="dm-chat-search-input" class="chat-search-input" type="text" placeholder="Search messages..." autocomplete="off" />
+          <button id="dm-chat-search-prev" class="chat-search-nav"><i class="fa fa-chevron-up"></i></button>
+          <button id="dm-chat-search-next" class="chat-search-nav"><i class="fa fa-chevron-down"></i></button>
+          <span id="dm-chat-search-count" class="chat-search-count"></span>
+        </div>
+      </div>
     `;
     mainPanel.appendChild(header);
     // Messages area
@@ -1939,9 +1947,112 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('dm-chat-input').addEventListener('keydown', e => {
       if (e.key === 'Enter') sendDMMessage(friend.id);
     });
-
+    // --- DM SEARCH LOGIC ---
+    const searchToggle = document.getElementById('dm-chat-search-toggle');
+    const searchBar = document.getElementById('dm-chat-search-bar');
+    const searchInput = document.getElementById('dm-chat-search-input');
+    const searchPrev = document.getElementById('dm-chat-search-prev');
+    const searchNext = document.getElementById('dm-chat-search-next');
+    const searchCount = document.getElementById('dm-chat-search-count');
+    const searchClose = document.getElementById('dm-chat-search-close');
+    const messagesDiv = document.getElementById('dm-messages');
+    let searchMatches = [];
+    let currentMatch = 0;
+    function clearHighlights() {
+      messagesDiv.querySelectorAll('.chat-search-highlight').forEach(el => {
+        const parent = el.parentNode;
+        parent.replaceChild(document.createTextNode(el.textContent), el);
+        parent.normalize();
+      });
+    }
+    function highlightMatches(query) {
+      clearHighlights();
+      if (!query) return [];
+      const matches = [];
+      messagesDiv.querySelectorAll('.main-chat-message-text').forEach((msgDiv, idx) => {
+        const text = msgDiv.textContent;
+        const regex = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+        let match;
+        let lastIndex = 0;
+        let html = '';
+        let found = false;
+        while ((match = regex.exec(text)) !== null) {
+          found = true;
+          html += text.slice(lastIndex, match.index);
+          html += `<span class='chat-search-highlight'>${match[0]}</span>`;
+          lastIndex = match.index + match[0].length;
+          matches.push({msgDiv, idx, matchIndex: match.index});
+        }
+        html += text.slice(lastIndex);
+        if (found) msgDiv.innerHTML = html;
+      });
+      return matches;
+    }
+    function updateSearchNav() {
+      if (!searchMatches.length) {
+        searchCount.textContent = '';
+        return;
+      }
+      searchMatches.forEach((m, i) => {
+        const el = m.msgDiv.querySelectorAll('.chat-search-highlight')[0];
+        if (el) el.classList.toggle('current', i === currentMatch);
+      });
+      searchCount.textContent = `${searchMatches.length ? (currentMatch+1) : 0}/${searchMatches.length}`;
+      // Scroll to current match
+      if (searchMatches.length) {
+        const el = searchMatches[currentMatch].msgDiv.closest('.dm-message');
+        if (el) el.scrollIntoView({behavior:'smooth', block:'center'});
+      }
+    }
+    function doSearch() {
+      const query = searchInput.value.trim();
+      searchMatches = highlightMatches(query);
+      currentMatch = 0;
+      updateSearchNav();
+    }
+    if (searchToggle && searchBar && searchInput) {
+      searchToggle.onclick = () => {
+        searchBar.classList.add('active');
+        searchToggle.style.display = 'none';
+        setTimeout(() => searchInput.focus(), 180);
+      };
+      searchClose.onclick = () => {
+        searchBar.classList.remove('active');
+        setTimeout(() => {
+          searchToggle.style.display = '';
+          searchInput.value = '';
+          clearHighlights();
+          searchCount.textContent = '';
+        }, 220);
+      };
+      searchInput.addEventListener('keydown', e => {
+        if (e.key === 'Escape') searchClose.click();
+      });
+    }
+    searchInput.addEventListener('input', doSearch);
+    searchPrev.addEventListener('click', () => {
+      if (!searchMatches.length) return;
+      currentMatch = (currentMatch - 1 + searchMatches.length) % searchMatches.length;
+      updateSearchNav();
+    });
+    searchNext.addEventListener('click', () => {
+      if (!searchMatches.length) return;
+      currentMatch = (currentMatch + 1) % searchMatches.length;
+      updateSearchNav();
+    });
+    searchInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        if (searchMatches.length) {
+          currentMatch = (currentMatch + 1) % searchMatches.length;
+          updateSearchNav();
+        }
+      }
+    });
+    searchInput.addEventListener('blur', () => {
+      if (!searchInput.value.trim()) clearHighlights();
+    });
+    // --- END DM SEARCH LOGIC ---
     // --- LIVE DM UPDATES: CLEANUP, SUBSCRIBE, POLL ---
-    // Clean up previous subscription and polling
     if (dmRealtimeSubscription) {
       supabase.removeChannel(dmRealtimeSubscription);
       dmRealtimeSubscription = null;
@@ -1950,7 +2061,6 @@ document.addEventListener('DOMContentLoaded', function() {
       clearInterval(dmPollingInterval);
       dmPollingInterval = null;
     }
-    // Subscribe to realtime updates for this DM (unique channel per friend)
     dmRealtimeSubscription = supabase.channel('realtime:direct_messages_' + friend.id)
       .on('postgres_changes', {
         event: '*',
@@ -1967,7 +2077,6 @@ document.addEventListener('DOMContentLoaded', function() {
         updateDMUnreadBadge();
       })
       .subscribe();
-    // Fallback polling every 4 seconds
     dmPollingInterval = setInterval(() => {
       loadDMMessages(friend.id);
     }, 4000);
@@ -1977,8 +2086,14 @@ document.addEventListener('DOMContentLoaded', function() {
   async function loadDMMessages(friendId) {
     const messagesArea = document.getElementById('dm-messages');
     if (!messagesArea) return;
-    // Initialize rendered IDs for this friend if not present
-    if (!renderedDMMessageIds[friendId]) renderedDMMessageIds[friendId] = new Set();
+    const searchBar = document.getElementById('dm-chat-search-bar');
+    const isSearchActive = searchBar && searchBar.classList.contains('active');
+    if (isSearchActive) {
+      messagesArea.innerHTML = '';
+      renderedDMMessageIds[friendId] = new Set();
+    } else {
+      if (!renderedDMMessageIds[friendId]) renderedDMMessageIds[friendId] = new Set();
+    }
     // Correct .or() filter syntax: no outer parentheses
     const filter = `and(sender_id.eq.${currentUser.id},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${currentUser.id})`;
     console.log('DM filter:', filter);
