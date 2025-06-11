@@ -136,7 +136,7 @@ body {
   width: 36px;
   height: 2.5px;
   background: #444;
-  margin: 8px 0 !important;
+  margin: 8px auto !important;
   border-radius: 1px;
   align-self: center;
   opacity: 1;
@@ -3131,4 +3131,24 @@ input:checked + .slider:before {
 @keyframes popIn {
   0% { opacity: 0; transform: scale(0.92);}
   100% { opacity: 1; transform: scale(1);}
+}
+
+/* --- Server Sidebar Separators --- */
+.server-separator {
+  width: 36px;
+  height: 2.5px;
+  background: #444;
+  margin: 8px auto !important;
+  border-radius: 1px;
+  align-self: center;
+  opacity: 1;
+}
+.profile-separator {
+  width: 36px;
+  height: 2.5px;
+  background: #444;
+  margin: 18px auto 8px auto !important;
+  border-radius: 1px;
+  align-self: center;
+  opacity: 1;
 }

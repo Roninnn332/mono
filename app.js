@@ -2509,6 +2509,14 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     }
   });
+
+  // Insert profile separator after the user/profile button
+  const userBtn = serversSidebar.querySelector('.user-btn');
+  if (userBtn) {
+    const profileSep = document.createElement('div');
+    profileSep.className = 'profile-separator';
+    userBtn.insertAdjacentElement('afterend', profileSep);
+  }
 });
 
 // Add CSS for animation at the end of the file if not present
