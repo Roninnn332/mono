@@ -1142,6 +1142,26 @@ document.addEventListener('DOMContentLoaded', function() {
           if (e.key === 'Enter') sendChannelMessage();
         });
       }
+      // --- Realtime subscription for text channel ---
+      if (currentRealtimeChannelId !== selectedChannel.id) {
+        if (channelRealtimeSubscription) {
+          supabase.removeChannel(channelRealtimeSubscription);
+          channelRealtimeSubscription = null;
+        }
+        channelRealtimeSubscription = supabase.channel('realtime:messages_' + selectedChannel.id)
+          .on('postgres_changes', {
+            event: '*',
+            schema: 'public',
+            table: 'messages',
+            filter: `channel_id=eq.${selectedChannel.id}`
+          }, payload => {
+            if (selectedChannelId === selectedChannel.id) {
+              reloadChannelMessages(selectedChannel.id);
+            }
+          })
+          .subscribe();
+        currentRealtimeChannelId = selectedChannel.id;
+      }
     } else if (selectedChannel && selectedChannel.type === 'voice') {
       // If a text channel was previously selected, clear its subscription
       if (channelRealtimeSubscription) {
