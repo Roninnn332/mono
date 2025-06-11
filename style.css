@@ -2122,16 +2122,18 @@ input:checked + .slider:before {
   align-items: flex-end;
   gap: 7px;
   margin: 10px 0 0 0;
-  opacity: 0;
-  transform: translateY(10px);
-  animation: dmMessageIn 0.18s cubic-bezier(0.4,0,0.2,1) forwards;
+  opacity: 1;
+  transform: none;
+  /* animation: none; */
   font-size: 0.98rem;
   flex-direction: row;
   justify-content: flex-start;
 }
-.dm-message.sent {
-  flex-direction: row-reverse;
-  justify-content: flex-end;
+/* Only animate DM sent/received messages (not used in text channels) */
+.dm-message.sent, .dm-message.received {
+  opacity: 0;
+  transform: translateY(10px);
+  animation: dmMessageIn 0.18s cubic-bezier(0.4,0,0.2,1) forwards;
 }
 .dm-message .friend-avatar {
   width: 32px;
