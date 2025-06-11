@@ -79,9 +79,8 @@ function showEmojiPicker(inputEl, anchorBtn) {
   if (!emojiPickerOverlay) createEmojiPickerDOM();
   emojiPickerActiveInput = inputEl;
   emojiPickerOverlay.classList.add('active');
-  positionEmojiPicker(anchorBtn);
   loadEmojiCategories();
-  loadEmojiGrid();
+  loadEmojiGrid('', null, anchorBtn); // Pass anchorBtn to loadEmojiGrid
   emojiSearchInput.value = '';
   emojiSearchInput.focus();
 }
@@ -93,9 +92,11 @@ function createEmojiPickerDOM() {
   emojiPickerOverlay = document.createElement('div');
   emojiPickerOverlay.className = 'emoji-picker-overlay';
   emojiPickerOverlay.innerHTML = `
-    <div class="emoji-picker" tabindex="-1" style="position:relative;">
-      <button class="emoji-picker-close" title="Close">&times;</button>
-      <input class="emoji-picker-search" type="text" placeholder="Search emojis..." />
+    <div class="emoji-picker" tabindex="-1" style="position:relative;visibility:hidden;">
+      <div class="emoji-picker-search-row">
+        <input class="emoji-picker-search" type="text" placeholder="Search emojis..." />
+        <button class="emoji-picker-close" title="Close">&times;</button>
+      </div>
       <div class="emoji-picker-categories"></div>
       <div class="emoji-picker-grid"></div>
     </div>
@@ -147,6 +148,86 @@ function categoryIcon(slug) {
   return icons[slug] || '❓';
 }
 
+// Move this to the top-level scope:
+function positionEmojiPicker(anchorBtn) {
+  if (!emojiPickerPanel || !anchorBtn) return;
+  // Default: center of screen (fallback)
+  emojiPickerPanel.style.position = 'fixed';
+  emojiPickerPanel.style.left = '50%';
+  emojiPickerPanel.style.top = '50%';
+  emojiPickerPanel.style.transform = 'translate(-50%, -50%)';
+  // Try to position near anchorBtn
+  try {
+    const rect = anchorBtn.getBoundingClientRect();
+    const panelRect = emojiPickerPanel.getBoundingClientRect();
+    let left = rect.left + window.scrollX;
+    let top = rect.bottom + 8 + window.scrollY;
+    // If picker would overflow right, shift left
+    if (left + panelRect.width > window.innerWidth - 12) {
+      left = window.innerWidth - panelRect.width - 12;
+    }
+    // If picker would overflow bottom, shift up
+    if (top + panelRect.height > window.innerHeight - 12) {
+      top = rect.top - panelRect.height - 8 + window.scrollY;
+      if (top < 0) top = 12;
+    }
+    emojiPickerPanel.style.left = left + 'px';
+    emojiPickerPanel.style.top = top + 'px';
+    emojiPickerPanel.style.transform = 'none';
+  } catch (e) {
+    // fallback to center
+    emojiPickerPanel.style.left = '50%';
+    emojiPickerPanel.style.top = '50%';
+    emojiPickerPanel.style.transform = 'translate(-50%, -50%)';
+  }
+}
+
+// Add this at the top level:
+async function loadEmojiGrid(search = '', category = null, anchorBtn = null) {
+  emojiGrid.innerHTML = '<div style="color:#aaa;font-size:1.1rem;padding:12px 0;">Loading...</div>';
+  let emojis = await fetchAllEmojis();
+  if (category) {
+    emojis = emojis.filter(e => e.group === category);
+  }
+  if (search) {
+    const s = search.toLowerCase();
+    emojis = emojis.filter(e => e.unicodeName.toLowerCase().includes(s) || e.slug.includes(s));
+  }
+  // Limit to 300 for performance
+  emojis = emojis.slice(0, 300);
+  if (!emojis.length) {
+    emojiGrid.innerHTML = '<div style="color:#aaa;font-size:1.1rem;padding:12px 0;">No emojis found.</div>';
+    if (anchorBtn) positionEmojiPicker(anchorBtn);
+    if (emojiPickerPanel) emojiPickerPanel.style.visibility = 'visible';
+    return;
+  }
+  emojiGrid.innerHTML = '';
+  emojis.forEach(emoji => {
+    const btn = document.createElement('button');
+    btn.className = 'emoji-picker-emoji';
+    btn.textContent = emoji.character;
+    btn.title = emoji.unicodeName;
+    btn.onclick = () => {
+      insertEmojiAtCursor(emojiPickerActiveInput, emoji.character);
+      hideEmojiPicker();
+    };
+    emojiGrid.appendChild(btn);
+  });
+  if (anchorBtn) positionEmojiPicker(anchorBtn);
+  if (emojiPickerPanel) emojiPickerPanel.style.visibility = 'visible';
+}
+
+// Add this at the top level:
+function insertEmojiAtCursor(input, emoji) {
+  if (!input) return;
+  const start = input.selectionStart;
+  const end = input.selectionEnd;
+  const val = input.value;
+  input.value = val.slice(0, start) + emoji + val.slice(end);
+  input.focus();
+  input.selectionStart = input.selectionEnd = start + emoji.length;
+}
+
 document.addEventListener('DOMContentLoaded', function() {
   // Global error handler for unhandled promise rejections
   window.addEventListener('unhandledrejection', function(event) {
@@ -156,6 +237,10 @@ document.addEventListener('DOMContentLoaded', function() {
       console.error('Global Unhandled Promise Rejection:', event);
     }
   });
+
+  // Preload emojis and categories for instant emoji picker
+  fetchAllEmojis();
+  fetchCategories();
 
   const addServerBtn = document.querySelector('.add-server');
   const modalOverlay = document.getElementById('modal-overlay');
@@ -2407,39 +2492,6 @@ document.addEventListener('DOMContentLoaded', function() {
       clearUserSession();
       window.location.reload();
     });
-  }
-
-  function positionEmojiPicker(anchorBtn) {
-    if (!emojiPickerPanel || !anchorBtn) return;
-    // Default: center of screen (fallback)
-    emojiPickerPanel.style.position = 'fixed';
-    emojiPickerPanel.style.left = '50%';
-    emojiPickerPanel.style.top = '50%';
-    emojiPickerPanel.style.transform = 'translate(-50%, -50%)';
-    // Try to position near anchorBtn
-    try {
-      const rect = anchorBtn.getBoundingClientRect();
-      const panelRect = emojiPickerPanel.getBoundingClientRect();
-      let left = rect.left + window.scrollX;
-      let top = rect.bottom + 8 + window.scrollY;
-      // If picker would overflow right, shift left
-      if (left + panelRect.width > window.innerWidth - 12) {
-        left = window.innerWidth - panelRect.width - 12;
-      }
-      // If picker would overflow bottom, shift up
-      if (top + panelRect.height > window.innerHeight - 12) {
-        top = rect.top - panelRect.height - 8 + window.scrollY;
-        if (top < 0) top = 12;
-      }
-      emojiPickerPanel.style.left = left + 'px';
-      emojiPickerPanel.style.top = top + 'px';
-      emojiPickerPanel.style.transform = 'none';
-    } catch (e) {
-      // fallback to center
-      emojiPickerPanel.style.left = '50%';
-      emojiPickerPanel.style.top = '50%';
-      emojiPickerPanel.style.transform = 'translate(-50%, -50%)';
-    }
   }
 
   // Robust emoji button event delegation for all chat inputs
