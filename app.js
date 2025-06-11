@@ -1815,7 +1815,15 @@ document.addEventListener('DOMContentLoaded', function() {
       const msgDiv = document.createElement('div');
         msgDiv.className = 'dm-message' + (msg.sender_id === currentUser.id ? ' sent' : ' received');
       msgDiv.innerHTML = `
-          <img class=\"friend-avatar\" src=\"${user.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.username)}`}\" alt=\"Avatar\">\n          <div class=\"dm-message-content\">\n            <div class=\"dm-message-header\">\n              <span class=\"dm-message-time\">${new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>\n            </div>\n            <div class=\"dm-message-text\">${msg.content}</div>\n          </div>\n        `;
+          <img class=\"friend-avatar\" src=\"${user.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.username)}`}\" alt=\"Avatar\">
+          <div class=\"dm-message-content\">
+            <div class=\"dm-message-header\">
+              <span class=\"dm-message-username\">${user.username}</span>
+              <span class=\"dm-message-time\">${new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+            </div>
+            <div class=\"dm-message-text\">${msg.content}</div>
+          </div>
+        `;
         // Add double-click handler for context menu
         msgDiv.ondblclick = function(e) {
           e.preventDefault();
