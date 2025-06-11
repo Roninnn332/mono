@@ -1031,7 +1031,7 @@ document.addEventListener('DOMContentLoaded', function() {
             <div class="main-chat-messages" id="main-chat-messages">
             ${messages.map(msg => {
               const user = channelUserCache[msg.user_id] || { username: 'Unknown', avatar_url: '' };
-              return `<div class=\"main-chat-message\" data-message-id=\"${msg.id}\">\n                <img class=\"friend-avatar\" src=\"${user.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.username)}`}\" alt=\"Avatar\">\n                <div class=\"main-chat-message-content\">\n                  <div class=\"main-chat-message-header\">\n                    <span class=\"main-chat-message-username\">${user.username}</span>\n                    <span class=\"main-chat-message-time\">${new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>\n                  </div>\n                  <div class=\"main-chat-message-text\">${msg.content}</div>\n                </div>\n              </div>`;
+              return `<div class=\"dm-message\">\n  <img class=\"friend-avatar\" src=\"${user.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.username)}`}\" alt=\"Avatar\">\n  <div class=\"dm-message-content\">\n    <div class=\"dm-message-text\">${msg.content}</div>\n  </div>\n</div>`;
             }).join('')}
             </div>
             <div class="main-chat-input-row">
@@ -1261,7 +1261,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (messagesDiv) {
       messagesDiv.innerHTML = messages.map(msg => {
         const user = channelUserCache[msg.user_id] || { username: 'Unknown', avatar_url: '' };
-        return `<div class=\"main-chat-message\">\n        <img class=\"friend-avatar\" src=\"${user.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.username)}`}\" alt=\"Avatar\">\n        <div class=\"main-chat-message-content\">\n          <div class=\"main-chat-message-header\">\n            <span class=\"main-chat-message-username\">${user.username}</span>\n            <span class=\"main-chat-message-time\">${new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>\n          </div>\n          <div class=\"main-chat-message-text\">${msg.content}</div>\n        </div>\n      </div>`;
+        return `<div class=\"dm-message\">\n  <img class=\"friend-avatar\" src=\"${user.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.username)}`}\" alt=\"Avatar\">\n  <div class=\"dm-message-content\">\n    <div class=\"dm-message-text\">${msg.content}</div>\n  </div>\n</div>`;
       }).join('');
       // Scroll to bottom
       setTimeout(() => {

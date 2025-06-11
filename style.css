@@ -2145,14 +2145,14 @@ input:checked + .slider:before {
 .dm-message-content {
   max-width: 420px;
   min-width: 60px;
-  background: #e1ffc7;
+  background: #f3f3f3;
   border-radius: 18px 18px 18px 8px;
   padding: 8px 18px 8px 14px;
   box-shadow: 0 1px 6px #23272a22;
   position: relative;
   word-break: break-word;
   margin-right: auto;
-  color: #222;
+  color: #23272a;
   font-size: 1.01rem;
   margin-bottom: 2px;
   margin-top: 2px;
@@ -2166,9 +2166,7 @@ input:checked + .slider:before {
   margin-left: auto;
   margin-right: 0;
 }
-.dm-message-header {
-  display: none;
-}
+.dm-message-header { display: none; }
 .dm-message-text {
   font-size: 1.01rem;
   line-height: 1.45;
