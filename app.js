@@ -1000,7 +1000,7 @@ document.addEventListener('DOMContentLoaded', function() {
             <span class="main-chat-header-name">${selectedChannel.name}</span>
             <div class="chat-header-search-area" id="chat-header-search-area">
               <button id="chat-search-toggle" class="chat-search-toggle" title="Search Messages"><i class="fa fa-search"></i></button>
-              <div class="chat-search-bar" id="chat-search-bar" style="display:none;">
+              <div class="chat-search-bar" id="chat-search-bar">
                 <input id="chat-search-input" class="chat-search-input" type="text" placeholder="Search messages..." autocomplete="off" />
                 <button id="chat-search-prev" class="chat-search-nav"><i class="fa fa-chevron-up"></i></button>
                 <button id="chat-search-next" class="chat-search-nav"><i class="fa fa-chevron-down"></i></button>
