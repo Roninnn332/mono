@@ -1416,19 +1416,14 @@ input:checked + .slider:before {
 }
 
 .main-chat-input-row {
-  display: flex !important;
-  position: fixed !important;
-  left: 292px !important;
-  right: 0 !important;
-  bottom: 0 !important;
-  width: auto !important;
-  z-index: 20 !important;
-  margin: 0 !important;
-  padding-left: 0 !important;
-  padding-right: 0 !important;
-  border-radius: 0 !important;
-  margin-bottom: 17px !important;
-  margin-left: 10px !important;
+  width: 100%;
+  position: relative;
+  background: #18191c;
+  z-index: 2;
+  margin: 0;
+  padding: 0 0 10px 0;
+  display: flex;
+  align-items: center;
 }
 .main-chat-input {
   flex: 1 1 auto;
