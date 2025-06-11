@@ -1833,12 +1833,10 @@ document.addEventListener('DOMContentLoaded', function() {
     inputRow.className = 'main-chat-input-row';
     inputRow.innerHTML = `
       <input class="main-chat-input" id="dm-chat-input" type="text" placeholder="Message ${friend.username}" autocomplete="off" />
-      <button id="dm-emoji-button" class="main-input-icon" title="Emoji Picker">😊</button>
+      <button id="emoji-button" class="main-input-icon" title="Emoji Picker">😊</button>
       <button class="main-chat-send" id="dm-send-btn"><i class="fa fa-paper-plane"></i></button>
     `;
     mainPanel.appendChild(inputRow);
-    // Emoji picker
-    setupDMEmojiButton();
     // Load messages
     await loadDMMessages(friend.id);
     // Mark all messages from this friend as read
@@ -2020,28 +2018,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     await loadDMMessages(friendId);
     updateDMUnreadBadge();
-  }
-
-  // Emoji picker for DM
-  function setupDMEmojiButton() {
-    if (!window.EmojiButton) return;
-    const emojiBtn = document.querySelector('#dm-emoji-button');
-    const chatInput = document.querySelector('#dm-chat-input');
-    if (!emojiBtn || !chatInput) return;
-    if (emojiBtn._emojiPickerAttached) return;
-    emojiBtn._emojiPickerAttached = true;
-    const picker = new window.EmojiButton({ theme: 'auto', position: 'top-end', zIndex: 2000 });
-    emojiBtn.addEventListener('click', () => {
-      picker.togglePicker(emojiBtn);
-    });
-    picker.on('emoji', emoji => {
-      const start = chatInput.selectionStart;
-      const end = chatInput.selectionEnd;
-      const val = chatInput.value;
-      chatInput.value = val.slice(0, start) + emoji + val.slice(end);
-      chatInput.focus();
-      chatInput.selectionStart = chatInput.selectionEnd = start + emoji.length;
-    });
   }
 
   // Check for unread DMs and show red dot
@@ -2466,16 +2442,21 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
-  function setupCustomEmojiButton() {
-    const emojiBtn = document.getElementById('emoji-button');
-    const chatInput = document.getElementById('chat-input');
-    if (emojiBtn && chatInput) {
-      emojiBtn.onclick = (e) => {
+  // Robust emoji button event delegation for all chat inputs
+  // This works for any #emoji-button, even after dynamic renders
+
+  document.addEventListener('click', function(e) {
+    const emojiBtn = e.target.closest('#emoji-button');
+    if (emojiBtn) {
+      // Find the nearest input in the same row
+      const inputRow = emojiBtn.closest('.main-chat-input-row');
+      const chatInput = inputRow ? inputRow.querySelector('input.main-chat-input') : null;
+      if (chatInput) {
         e.preventDefault();
         showEmojiPicker(chatInput, emojiBtn);
-      };
+      }
     }
-  }
+  });
 });
 
 // Add CSS for animation at the end of the file if not present
