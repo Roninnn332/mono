@@ -2979,17 +2979,18 @@ input:checked + .slider:before {
   position: absolute;
   right: 0;
   top: 50%;
-  transform: translateY(-50%) scaleX(1);
+  transform: translateY(-50%) scaleX(0.7);
   min-width: 260px;
   max-width: 340px;
   z-index: 10;
-  opacity: 1;
-  transition: opacity 0.18s, transform 0.22s, box-shadow 0.22s;
-}
-.chat-header-search-area .chat-search-bar[style*='display:none'] {
   opacity: 0;
   pointer-events: none;
-  transform: translateY(-50%) scaleX(0.7);
+  transition: opacity 0.22s cubic-bezier(.23,1.12,.62,1.01), transform 0.28s cubic-bezier(.23,1.12,.62,1.01), box-shadow 0.22s;
+}
+.chat-header-search-area .chat-search-bar.active {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(-50%) scaleX(1);
 }
 .chat-search-close {
   background: none;

@@ -1089,16 +1089,18 @@ document.addEventListener('DOMContentLoaded', function() {
       }
       if (searchToggle && searchBar && searchInput) {
         searchToggle.onclick = () => {
-          searchBar.style.display = 'flex';
+          searchBar.classList.add('active');
           searchToggle.style.display = 'none';
-          setTimeout(() => searchInput.focus(), 80);
+          setTimeout(() => searchInput.focus(), 180);
         };
         searchClose.onclick = () => {
-          searchBar.style.display = 'none';
-          searchToggle.style.display = '';
-          searchInput.value = '';
-          clearHighlights();
-          searchCount.textContent = '';
+          searchBar.classList.remove('active');
+          setTimeout(() => {
+            searchToggle.style.display = '';
+            searchInput.value = '';
+            clearHighlights();
+            searchCount.textContent = '';
+          }, 220);
         };
         searchInput.addEventListener('keydown', e => {
           if (e.key === 'Escape') searchClose.click();
@@ -1131,6 +1133,15 @@ document.addEventListener('DOMContentLoaded', function() {
       setTimeout(() => {
         if (messagesDiv) messagesDiv.scrollTop = messagesDiv.scrollHeight;
       }, 120);
+      // Attach send button and Enter key for sending messages
+      const sendBtn = document.querySelector('.main-chat-send');
+      const chatInput = document.getElementById('chat-input');
+      if (sendBtn && chatInput) {
+        sendBtn.onclick = sendChannelMessage;
+        chatInput.addEventListener('keydown', e => {
+          if (e.key === 'Enter') sendChannelMessage();
+        });
+      }
     } else if (selectedChannel && selectedChannel.type === 'voice') {
       // If a text channel was previously selected, clear its subscription
       if (channelRealtimeSubscription) {
