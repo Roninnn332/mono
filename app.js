@@ -2465,6 +2465,17 @@ document.addEventListener('DOMContentLoaded', function() {
       emojiPickerPanel.style.transform = 'translate(-50%, -50%)';
     }
   }
+
+  function setupCustomEmojiButton() {
+    const emojiBtn = document.getElementById('emoji-button');
+    const chatInput = document.getElementById('chat-input');
+    if (emojiBtn && chatInput) {
+      emojiBtn.onclick = (e) => {
+        e.preventDefault();
+        showEmojiPicker(chatInput, emojiBtn);
+      };
+    }
+  }
 });
 
 // Add CSS for animation at the end of the file if not present
