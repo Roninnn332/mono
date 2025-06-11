@@ -1213,11 +1213,11 @@ document.addEventListener('DOMContentLoaded', function() {
             <div class="chat-header-search-area" id="chat-header-search-area">
               <button id="chat-search-toggle" class="chat-search-toggle" title="Search Messages"><i class="fa fa-search"></i></button>
               <div class="chat-search-bar" id="chat-search-bar">
+                <button id="chat-search-close" class="chat-search-close" title="Close Search"><i class="fa fa-times"></i></button>
                 <input id="chat-search-input" class="chat-search-input" type="text" placeholder="Search messages..." autocomplete="off" />
                 <button id="chat-search-prev" class="chat-search-nav"><i class="fa fa-chevron-up"></i></button>
                 <button id="chat-search-next" class="chat-search-nav"><i class="fa fa-chevron-down"></i></button>
                 <span id="chat-search-count" class="chat-search-count"></span>
-                <button id="chat-search-close" class="chat-search-close" title="Close Search"><i class="fa fa-times"></i></button>
               </div>
             </div>
           </div>
@@ -1225,7 +1225,7 @@ document.addEventListener('DOMContentLoaded', function() {
             <div class="main-chat-messages" id="main-chat-messages">
             ${messages.map(msg => {
               const user = channelUserCache[msg.user_id] || { username: 'Unknown', avatar_url: '' };
-              return `<div class=\"dm-message\">\n  <img class=\"friend-avatar\" src=\"${user.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.username)}`}\" alt=\"Avatar\">\n  <div class=\"dm-message-content\">\n    <div class=\"dm-message-text\">${msg.content}</div>\n  </div>\n</div>`;
+              return `<div class=\"dm-message\">\n  <img class=\"friend-avatar\" src=\"${user.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.username)}`}\" alt=\"Avatar\">\n  <div class=\"dm-message-content\">\n    <div class=\"dm-message-text main-chat-message-text\">${msg.content}</div>\n  </div>\n</div>`;
             }).join('')}
             </div>
             <div class="main-chat-input-row">
@@ -1289,7 +1289,8 @@ document.addEventListener('DOMContentLoaded', function() {
         searchCount.textContent = `${searchMatches.length ? (currentMatch+1) : 0}/${searchMatches.length}`;
         // Scroll to current match
         if (searchMatches.length) {
-          const el = searchMatches[currentMatch].msgDiv.closest('.main-chat-message');
+          // The message bubble is .dm-message, not .main-chat-message
+          const el = searchMatches[currentMatch].msgDiv.closest('.dm-message');
           if (el) el.scrollIntoView({behavior:'smooth', block:'center'});
         }
       }
@@ -1454,7 +1455,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (messagesDiv) {
       messagesDiv.innerHTML = messages.map(msg => {
         const user = channelUserCache[msg.user_id] || { username: 'Unknown', avatar_url: '' };
-        return `<div class=\"dm-message\">\n  <img class=\"friend-avatar\" src=\"${user.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.username)}`}\" alt=\"Avatar\">\n  <div class=\"dm-message-content\">\n    <div class=\"dm-message-text\">${msg.content}</div>\n  </div>\n</div>`;
+        return `<div class=\"dm-message\">\n  <img class=\"friend-avatar\" src=\"${user.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.username)}`}\" alt=\"Avatar\">\n  <div class=\"dm-message-content\">\n    <div class=\"dm-message-text main-chat-message-text\">${msg.content}</div>\n  </div>\n</div>`;
       }).join('');
       // Scroll to bottom
       setTimeout(() => {
@@ -2019,7 +2020,7 @@ document.addEventListener('DOMContentLoaded', function() {
         msgDiv.innerHTML = `
           <img class=\"friend-avatar\" src=\"${user.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.username)}`}\" alt=\"Avatar\">\n
           <div class=\"dm-message-content\">\n
-            <div class=\"dm-message-text\">${msg.content}</div>\n
+            <div class=\"dm-message-text main-chat-message-text\">${msg.content}</div>\n
           </div>\n
         `;
         // Add double-click handler for context menu
