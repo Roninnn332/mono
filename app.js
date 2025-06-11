@@ -38,6 +38,115 @@ let lastSelectedServerName = null;
 let dmRealtimeSubscription = null;
 let dmPollingInterval = null;
 
+// --- Emoji Picker Integration (using emoji-api.com) ---
+// Add global emoji cache
+let emojiCache = null;
+let emojiCategories = null;
+let emojiCategoryMap = {};
+let emojiPickerOverlay = null;
+let emojiPickerPanel = null;
+let emojiSearchInput = null;
+let emojiGrid = null;
+let emojiCategoryRow = null;
+let emojiPickerActiveInput = null;
+const EMOJI_API_KEY = '7b187d4be217627998c36af54a1e716657f37cf9';
+
+// Fetch all emojis and categories (cache in memory)
+async function fetchAllEmojis() {
+  if (emojiCache) return emojiCache;
+  const res = await fetch(`https://emoji-api.com/emojis?access_key=${EMOJI_API_KEY}`);
+  emojiCache = await res.json();
+  return emojiCache;
+}
+async function fetchCategories() {
+  if (emojiCategories) return emojiCategories;
+  const res = await fetch(`https://emoji-api.com/categories?access_key=${EMOJI_API_KEY}`);
+  emojiCategories = await res.json();
+  return emojiCategories;
+}
+// Build category map for fast lookup
+async function buildCategoryMap() {
+  if (Object.keys(emojiCategoryMap).length) return emojiCategoryMap;
+  const emojis = await fetchAllEmojis();
+  for (const emoji of emojis) {
+    if (!emojiCategoryMap[emoji.group]) emojiCategoryMap[emoji.group] = [];
+    emojiCategoryMap[emoji.group].push(emoji);
+  }
+  return emojiCategoryMap;
+}
+// Show emoji picker popup
+function showEmojiPicker(inputEl, anchorBtn) {
+  if (!emojiPickerOverlay) createEmojiPickerDOM();
+  emojiPickerActiveInput = inputEl;
+  emojiPickerOverlay.classList.add('active');
+  positionEmojiPicker(anchorBtn);
+  loadEmojiCategories();
+  loadEmojiGrid();
+  emojiSearchInput.value = '';
+  emojiSearchInput.focus();
+}
+function hideEmojiPicker() {
+  if (emojiPickerOverlay) emojiPickerOverlay.classList.remove('active');
+  emojiPickerActiveInput = null;
+}
+function createEmojiPickerDOM() {
+  emojiPickerOverlay = document.createElement('div');
+  emojiPickerOverlay.className = 'emoji-picker-overlay';
+  emojiPickerOverlay.innerHTML = `
+    <div class="emoji-picker" tabindex="-1" style="position:relative;">
+      <button class="emoji-picker-close" title="Close">&times;</button>
+      <input class="emoji-picker-search" type="text" placeholder="Search emojis..." />
+      <div class="emoji-picker-categories"></div>
+      <div class="emoji-picker-grid"></div>
+    </div>
+  `;
+  document.body.appendChild(emojiPickerOverlay);
+  emojiPickerPanel = emojiPickerOverlay.querySelector('.emoji-picker');
+  emojiSearchInput = emojiPickerOverlay.querySelector('.emoji-picker-search');
+  emojiGrid = emojiPickerOverlay.querySelector('.emoji-picker-grid');
+  emojiCategoryRow = emojiPickerOverlay.querySelector('.emoji-picker-categories');
+  // Close logic
+  emojiPickerOverlay.querySelector('.emoji-picker-close').onclick = hideEmojiPicker;
+  emojiPickerOverlay.onclick = e => {
+    if (e.target === emojiPickerOverlay) hideEmojiPicker();
+  };
+  emojiSearchInput.oninput = () => loadEmojiGrid(emojiSearchInput.value.trim());
+}
+async function loadEmojiCategories() {
+  const cats = await fetchCategories();
+  emojiCategoryRow.innerHTML = '';
+  cats.forEach(cat => {
+    const btn = document.createElement('button');
+    btn.className = 'emoji-picker-category-btn';
+    btn.textContent = categoryIcon(cat.slug);
+    btn.title = cat.slug.replace(/-/g, ' ');
+    btn.onclick = () => {
+      document.querySelectorAll('.emoji-picker-category-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      loadEmojiGrid('', cat.slug);
+    };
+    emojiCategoryRow.appendChild(btn);
+  });
+  // Select first by default
+  if (emojiCategoryRow.firstChild) emojiCategoryRow.firstChild.classList.add('selected');
+}
+function categoryIcon(slug) {
+  // Simple icons for main categories
+  const icons = {
+    'smileys-emotion': '😃',
+    'people-body': '🧑',
+    'animals-nature': '🐻',
+    'food-drink': '🍔',
+    'travel-places': '🌍',
+    'activities': '⚽',
+    'objects': '💡',
+    'symbols': '❤️',
+    'flags': '🏳️',
+    'component': '🧩',
+  };
+  return icons[slug] || '❓';
+}
+
 document.addEventListener('DOMContentLoaded', function() {
   // Global error handler for unhandled promise rejections
   window.addEventListener('unhandledrejection', function(event) {
@@ -1242,7 +1351,6 @@ document.addEventListener('DOMContentLoaded', function() {
           document.getElementById('voice-mute-btn').style.display = '';
       }
     }
-    setupEmojiButton();
   }
 
   // Helper to reload only messages for a channel (without re-subscribing)
@@ -1334,35 +1442,6 @@ document.addEventListener('DOMContentLoaded', function() {
       loadChannels(selectedServerId);
     }
   });
-
-  // --- Emoji Button integration ---
-  function setupEmojiButton() {
-    if (!window.EmojiButton) {
-      console.error('EmojiButton library not loaded!');
-      return;
-    }
-    const emojiBtn = document.querySelector('#emoji-button');
-    const chatInput = document.querySelector('#chat-input');
-    if (!emojiBtn || !chatInput) {
-      console.warn('Emoji button or chat input not found!');
-      return;
-    }
-    // Always create a new picker for each render
-    const picker = new window.EmojiButton({
-      theme: 'auto',
-      position: 'top-end',
-      zIndex: 2000
-    });
-    emojiBtn.onclick = () => picker.togglePicker(emojiBtn);
-    picker.on('emoji', emoji => {
-      const start = chatInput.selectionStart;
-      const end = chatInput.selectionEnd;
-      const val = chatInput.value;
-      chatInput.value = val.slice(0, start) + emoji + val.slice(end);
-      chatInput.focus();
-      chatInput.selectionStart = chatInput.selectionEnd = start + emoji.length;
-    });
-  }
 
   // --- JOIN SERVER / FRIENDS UI LOGIC ---
   const joinServerBtn = document.querySelector('.join-server-btn');
@@ -2352,6 +2431,39 @@ document.addEventListener('DOMContentLoaded', function() {
       clearUserSession();
       window.location.reload();
     });
+  }
+
+  function positionEmojiPicker(anchorBtn) {
+    if (!emojiPickerPanel || !anchorBtn) return;
+    // Default: center of screen (fallback)
+    emojiPickerPanel.style.position = 'fixed';
+    emojiPickerPanel.style.left = '50%';
+    emojiPickerPanel.style.top = '50%';
+    emojiPickerPanel.style.transform = 'translate(-50%, -50%)';
+    // Try to position near anchorBtn
+    try {
+      const rect = anchorBtn.getBoundingClientRect();
+      const panelRect = emojiPickerPanel.getBoundingClientRect();
+      let left = rect.left + window.scrollX;
+      let top = rect.bottom + 8 + window.scrollY;
+      // If picker would overflow right, shift left
+      if (left + panelRect.width > window.innerWidth - 12) {
+        left = window.innerWidth - panelRect.width - 12;
+      }
+      // If picker would overflow bottom, shift up
+      if (top + panelRect.height > window.innerHeight - 12) {
+        top = rect.top - panelRect.height - 8 + window.scrollY;
+        if (top < 0) top = 12;
+      }
+      emojiPickerPanel.style.left = left + 'px';
+      emojiPickerPanel.style.top = top + 'px';
+      emojiPickerPanel.style.transform = 'none';
+    } catch (e) {
+      // fallback to center
+      emojiPickerPanel.style.left = '50%';
+      emojiPickerPanel.style.top = '50%';
+      emojiPickerPanel.style.transform = 'translate(-50%, -50%)';
+    }
   }
 });
 
