@@ -1036,7 +1036,7 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
             <div class="main-chat-input-row">
               <button class="main-input-icon main-input-media" title="Send Media"><i class="fa fa-paperclip"></i></button>
-              <input class="main-chat-input" id="chat-input" type="text" placeholder="Message #${selectedChannel.name}" />
+              <input class="main-chat-input" id="chat-input" type="text" placeholder="Message #${selectedChannel.name}" autocomplete="off" autocorrect="off" spellcheck="false" />
               <button id="emoji-button" class="main-input-icon" title="Emoji Picker">😊</button>
               <button class="main-chat-send"><i class="fa fa-paper-plane"></i></button>
             </div>
@@ -1337,22 +1337,24 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // --- Emoji Button integration ---
   function setupEmojiButton() {
-    if (!window.EmojiButton) return;
+    if (!window.EmojiButton) {
+      console.error('EmojiButton library not loaded!');
+      return;
+    }
     const emojiBtn = document.querySelector('#emoji-button');
     const chatInput = document.querySelector('#chat-input');
-    if (!emojiBtn || !chatInput) return;
-    if (emojiBtn._emojiPickerAttached) return; // Prevent double attaching
-    emojiBtn._emojiPickerAttached = true;
+    if (!emojiBtn || !chatInput) {
+      console.warn('Emoji button or chat input not found!');
+      return;
+    }
+    // Always create a new picker for each render
     const picker = new window.EmojiButton({
       theme: 'auto',
       position: 'top-end',
       zIndex: 2000
     });
-    emojiBtn.addEventListener('click', () => {
-      picker.togglePicker(emojiBtn);
-    });
+    emojiBtn.onclick = () => picker.togglePicker(emojiBtn);
     picker.on('emoji', emoji => {
-      // Insert at cursor position
       const start = chatInput.selectionStart;
       const end = chatInput.selectionEnd;
       const val = chatInput.value;
